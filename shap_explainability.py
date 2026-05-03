@@ -1,14 +1,16 @@
 """
-shap_explainability.py  —  Stage 2: LightGBM + SHAP (17 features)
+shap_explainability.py  —  Stage 2: LightGBM + SHAP (19 features)
 ==================================================================
-With 250 stocks and 17 features spanning price, fundamental, and risk
+With 250 stocks and 19 features spanning price, fundamental, and risk
 signals, LightGBM captures non-linear interactions Ridge cannot:
   - High P/E × high momentum → different signal than low P/E × high momentum
   - Low Beta × near 52W high → strong quality+anchoring combo
   - High IdioVol × high MaxRet → double lottery premium → underperformance
+  - High CashFlowYield × low EV/EBITDA → deep value with cash backing
 
 TARGET: Next_Month_Return (price return forecasting, not rank).
 LEAKAGE: fixed n_estimators, no early stopping, no test eval_set.
+         Missing data filled with cross-sectional median (no future leak).
 """
 
 import pandas as pd
@@ -25,23 +27,25 @@ warnings.filterwarnings("ignore")
 from data_loader import FEATURES, TARGET, FEATURE_GROUPS
 
 FEATURE_LABELS = {
-    "Mom_12_1"      : "12M Momentum",
-    "Mom_6_1"       : "6M Momentum",
-    "Mom_1"         : "1M Reversal",
-    "Vol_12"        : "12M Volatility",
-    "IdioVol"       : "Idiosyncratic Vol",
-    "Beta_12"       : "Market Beta",
-    "High52W"       : "52W High Ratio",
-    "Trend_MA"      : "Price/MA Trend",
-    "MaxRet_1M"     : "Max Daily Return",
-    "PB_ratio"      : "Price/Book",
-    "PE_TTM"        : "P/E (TTM)",
-    "ROE"           : "Return on Equity",
-    "GrossMargin"   : "Gross Margin",
-    "RevGrowth_YoY" : "Revenue Growth",
-    "EarnGrowth_YoY": "Earnings Growth",
-    "LogMktCap"     : "Log Mkt Cap",
-    "VolRatio"      : "Volume Ratio",
+    "Mom_12_1"       : "12M Momentum",
+    "Mom_6_1"        : "6M Momentum",
+    "Mom_1"          : "1M Reversal",
+    "Vol_12"         : "12M Volatility",
+    "IdioVol"        : "Idiosyncratic Vol",
+    "Beta_12"        : "Market Beta",
+    "High52W"        : "52W High Ratio",
+    "Trend_MA"       : "Price/MA Trend",
+    "MaxRet_1M"      : "Max Daily Return",
+    "PB_ratio"       : "Price/Book",
+    "PE_TTM"         : "P/E (TTM)",
+    "EV_EBITDA"      : "EV/EBITDA",
+    "ROE"            : "Return on Equity",
+    "GrossMargin"    : "Gross Margin",
+    "CashFlowYield"  : "Cash Flow Yield",
+    "RevGrowth_YoY"  : "Revenue Growth",
+    "EarnGrowth_YoY" : "Earnings Growth",
+    "LogMktCap"      : "Log Mkt Cap",
+    "VolRatio"       : "Volume Ratio",
 }
 
 LGB_PARAMS = {
@@ -78,6 +82,7 @@ def walk_forward_lgbm(factors_df, min_train_months=24):
     Expanding-window walk-forward with LightGBM.
     250 stocks × growing window = thousands of training rows.
     Fixed n_estimators — deterministic, zero leakage.
+    Missing data filled with cross-sectional median per month.
     """
     all_dates    = sorted(factors_df["date"].unique())
     results      = []
@@ -95,9 +100,20 @@ def walk_forward_lgbm(factors_df, min_train_months=24):
         if len(train_df) < 200 or len(test_df) == 0:
             continue
 
-        X_train = train_df[FEATURES].fillna(0).values
+        X_train_df = train_df[FEATURES].copy()
+        for col in FEATURES:
+            med = X_train_df[col].median()
+            X_train_df[col] = X_train_df[col].fillna(med)
+        X_train_df = X_train_df.fillna(0)
+        X_test_df = test_df[FEATURES].copy()
+        for col in FEATURES:
+            med = X_test_df[col].median()
+            X_test_df[col] = X_test_df[col].fillna(med)
+        X_test_df = X_test_df.fillna(0)
+
+        X_train = X_train_df.values
         y_train = train_df[TARGET].values
-        X_test  = test_df[FEATURES].fillna(0).values
+        X_test  = X_test_df.values
         y_test  = test_df[TARGET].values
 
         model = lgb.LGBMRegressor(**LGB_PARAMS)
@@ -160,7 +176,7 @@ def plot_global_importance(shap_df, save_path="outputs/shap_global_importance.pn
         ax.text(val + 0.00002, bar.get_y() + bar.get_height()/2,
                 f"{val:.5f}", va="center", fontsize=8)
     ax.set_xlabel("Mean |SHAP value|")
-    ax.set_title("Global Factor Importance — LightGBM SHAP (17 features)",
+    ax.set_title("Global Factor Importance — LightGBM SHAP (19 features)",
                  fontweight="bold", pad=12)
     plt.tight_layout()
     plt.savefig(save_path, dpi=150); plt.close()
@@ -206,7 +222,7 @@ def plot_rolling_factor_importance(shap_df,
     fig, ax = plt.subplots(figsize=(14, 6))
     for col, colour in zip(rolling.columns, PALETTE):
         ax.plot(rolling.index, rolling[col], lw=1.6, label=col, color=colour)
-    ax.set_title("Rolling 12M Factor Importance — 17 Features (SHAP)",
+    ax.set_title("Rolling 12M Factor Importance — 19 Features (SHAP)",
                  fontweight="bold", pad=12)
     ax.set_ylabel("Mean |SHAP| (rolling 12M)")
     ax.legend(loc="upper right", fontsize=7, ncol=4)
@@ -216,7 +232,7 @@ def plot_rolling_factor_importance(shap_df,
 
 
 def plot_shap_by_group(shap_df, save_path="outputs/shap_group_importance.png"):
-    """Shows importance aggregated by feature group — easier to read for 17 features."""
+    """Shows importance aggregated by feature group — easier to read for 19 features."""
     group_shap = {}
     for grp, feats in FEATURE_GROUPS.items():
         cols = [f"shap_{f}" for f in feats if f"shap_{f}" in shap_df.columns]

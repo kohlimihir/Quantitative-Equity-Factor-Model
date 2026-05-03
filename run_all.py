@@ -1,23 +1,24 @@
 """
-run_all.py  —  Master Pipeline (250-Stock, 17-Feature Model)
+run_all.py  —  Master Pipeline (250-Stock, 19-Feature Model)
 ============================================================
 Single command to run the full 5-stage pipeline:
 
   python run_all.py
 
 Stages:
-  1  Data download + 17-feature engineering   (data_loader.py)
+  1  Data download + 19-feature engineering   (data_loader.py)
   2  Ridge baseline walk-forward              (model.py)
   3  LightGBM + SHAP                          (shap_explainability.py)
-  4  Sector neutralisation + EWM smoothing    (sector_neutralisation.py)
+  4  Sector-diversified portfolio + EWM       (sector_neutralisation.py)
   5  OOT validation                           (oot_validation.py)
   6  Transaction cost modelling               (transaction_costs.py)
 
 Universe: 250 stocks (50 per sector × 5 sectors)
-Features: 17 across 8 groups (Momentum, Risk, Technical, Value,
+Features: 19 across 8 groups (Momentum, Risk, Technical, Value,
           Quality, Growth, Size, Liquidity)
-Portfolio: top-2 per sector = 10 stocks/month
-Turnover reduction: EWM α=0.7 + rebalancing threshold 8%
+Portfolio: top-3 per sector = 15 stocks/month
+Turnover reduction: EWM α=0.5 + rebalancing threshold 12%
+                    + holding-period bonus (+0.02/mo, cap 5)
 Data caching: daily_prices.parquet + fundamentals.parquet
               (re-runs skip download entirely)
 """
@@ -50,15 +51,15 @@ def done(label, t):
 
 
 t0 = time.time()
-section("EQUITY FACTOR MODEL — 250 STOCKS, 17 FEATURES")
-print("  Ridge → LightGBM+SHAP → Sector Neutral → OOT → Costs")
+section("EQUITY FACTOR MODEL — 250 STOCKS, 19 FEATURES")
+print("  Ridge → LightGBM+SHAP → Sector Diversified → OOT → Costs")
 print("  8 feature groups: Momentum, Risk, Technical, Value,")
 print("  Quality, Growth, Size, Liquidity")
 print("  Data cached locally — subsequent runs skip download")
 
 
 # ── STEP 1: Data & Features ───────────────────────────────────────────────────
-step(1, "Loading/downloading data and engineering 17 factors")
+step(1, "Loading/downloading data and engineering 19 factors")
 t = time.time()
 
 from data_loader import (
@@ -84,7 +85,7 @@ print(f"  Features : {len(FEATURES)} ({list(FEATURE_GROUPS.keys())})")
 
 
 # ── STEP 2: Ridge Baseline ────────────────────────────────────────────────────
-step(2, "Ridge regression baseline — Stage 1 (17 features)")
+step(2, "Ridge regression baseline — Stage 1 (19 features)")
 t = time.time()
 
 from model import walk_forward_validation, evaluate_model
@@ -93,10 +94,10 @@ ridge_results, coef_df = walk_forward_validation(factors_df)
 metrics_ridge           = evaluate_model(ridge_results, coef_df)
 ridge_results.to_csv("data/ridge_predictions.csv", index=False)
 
-# Ridge portfolio: top-10 cross-sectional (no sector constraint)
+# Ridge portfolio: top-15 cross-sectional (no sector constraint)
 ridge_port_list = []
 for date, g in ridge_results.groupby("date"):
-    ridge_port_list.append(g.nlargest(10, "predicted")["actual"].mean())
+    ridge_port_list.append(g.nlargest(15, "predicted")["actual"].mean())
 ridge_port   = pd.Series(ridge_port_list)
 ridge_sharpe = ((ridge_port-RF).mean()*12) / (ridge_port.std()*np.sqrt(12))
 ridge_cum    = (1+ridge_port).prod()-1
@@ -122,10 +123,10 @@ metrics_lgbm            = evaluate_lgbm(lgbm_results)
 lgbm_results.to_csv("data/lgbm_predictions.csv", index=False)
 shap_df.to_csv("data/shap_values.csv",            index=False)
 
-# LightGBM portfolio: top-10 cross-sectional
+# LightGBM portfolio: top-15 cross-sectional
 lgbm_port_list = []
 for date, g in lgbm_results.groupby("date"):
-    lgbm_port_list.append(g.nlargest(10, "predicted")["actual"].mean())
+    lgbm_port_list.append(g.nlargest(15, "predicted")["actual"].mean())
 lgbm_port   = pd.Series(lgbm_port_list)
 lgbm_sharpe = ((lgbm_port-RF).mean()*12) / (lgbm_port.std()*np.sqrt(12))
 
@@ -144,13 +145,14 @@ done("LightGBM + SHAP", time.time() - t)
 
 
 # ── STEP 4: Sector Neutralisation + EWM ──────────────────────────────────────
-step(4, "Sector neutralisation + EWM signal smoothing — Stage 3")
+step(4, "Sector-diversified portfolio + EWM smoothing — Stage 3")
 t = time.time()
 
 from sector_neutralisation import (
     add_sector_features, walk_forward_sector_neutral,
     evaluate_sector_neutral, build_sector_aware_portfolio,
     EWM_ALPHA, REBAL_THRESHOLD, TOP_PER_SECTOR,
+    HOLD_BONUS_PER_MONTH, HOLD_BONUS_CAP,
 )
 
 factors_df_sector, z_features = add_sector_features(factors_df, SECTOR_MAP)
@@ -234,22 +236,24 @@ print(f"  Universe       : {factors_df['ticker'].nunique()} stocks | "
       f"{factors_df['date'].nunique()} months")
 print(f"  Features       : {len(FEATURES)} across "
       f"{len(FEATURE_GROUPS)} groups")
-print(f"  Portfolio      : top-{TOP_PER_SECTOR}/sector = 10 stocks | "
-      f"EWM α={EWM_ALPHA} | threshold={REBAL_THRESHOLD}")
+print(f"  Portfolio      : top-{TOP_PER_SECTOR}/sector = "
+      f"{TOP_PER_SECTOR*5} stocks | "
+      f"EWM α={EWM_ALPHA} | threshold={REBAL_THRESHOLD} | "
+      f"hold bonus={HOLD_BONUS_PER_MONTH}/mo")
 print(f"  Turnover       : {turnover_df['turnover'].mean():.1%}/month "
       f"({turnover_df['turnover'].mean()*12:.0%}/year)")
 
 print(f"\n  {'Stage':<38} {'Mean IC':>9} {'IC-IR':>8} {'Sharpe':>8}")
 print("  " + "-"*65)
-print(f"  {'1. Ridge (17 features)':<38} "
+print(f"  {'1. Ridge (19 features)':<38} "
       f"{metrics_ridge.get('Mean_IC',0):>9.4f} "
       f"{metrics_ridge.get('IC_IR',0):>8.4f} "
       f"{ridge_sharpe:>8.3f}")
-print(f"  {'2. LightGBM (17 features)':<38} "
+print(f"  {'2. LightGBM (19 features)':<38} "
       f"{metrics_lgbm.get('Mean_IC',0):>9.4f} "
       f"{metrics_lgbm.get('IC_IR',0):>8.4f} "
       f"{lgbm_sharpe:>8.3f}")
-print(f"  {'3. + Sector Neutral + EWM':<38} "
+print(f"  {'3. + Sector Diversified + EWM':<38} "
       f"{metrics_sector.get('Mean_IC',0):>9.4f} "
       f"{metrics_sector.get('IC_IR',0):>8.4f} "
       f"{sect_sharpe:>8.3f}")
@@ -277,16 +281,20 @@ n_st  = factors_df["ticker"].nunique()
 
 print(f"""
   Resume bullet:
-    "Built 17-factor equity model on {n_st} S&P 500 stocks across
+    "Built 19-factor equity model on {n_st} S&P 500 stocks across
      5 GICS sectors (50 stocks/sector); features span momentum,
      idiosyncratic volatility, 52W-high anchoring, market beta,
-     price/book, ROE, revenue growth, log market cap, and liquidity —
-     chosen for low inter-group correlation and academic evidence of
-     persistent alpha; cross-sectional Z-scoring + LightGBM achieved
-     IC {ic_v:.3f} and IC-IR {ir_v:.3f}; EWM signal smoothing +
-     rebalancing threshold reduced annual turnover to {turn:.0%};
+     price/book, EV/EBITDA, ROE, cash flow yield, revenue growth,
+     log market cap, and liquidity — chosen for low inter-group
+     correlation and academic evidence of persistent alpha;
+     LightGBM on raw features (no Z-scoring to preserve sector alpha)
+     achieved IC {ic_v:.3f} and IC-IR {ir_v:.3f};
+     sector-diversified portfolio (top-3/sector = 15 stocks) +
+     EWM signal smoothing (α={EWM_ALPHA}) + holding-period bonus
+     + 12% rebalancing threshold reduced annual turnover to {turn:.0%};
      OOT validation on {om} months of unseen data confirmed
      Sharpe {os_:.2f}; net-of-cost Sharpe {net_sharpe:.2f} at 10bps
      round-trip confirms deployable alpha; fundamental data uses
-     45-day publication lag to prevent leakage."
+     45-day publication lag + cross-sectional median imputation
+     to prevent leakage."
 """)

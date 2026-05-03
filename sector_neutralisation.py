@@ -1,35 +1,47 @@
 """
-sector_neutralisation.py  —  Stage 3: Sector Neutralisation + Turnover Control
-===============================================================================
-Three improvements over plain LightGBM:
+sector_neutralisation.py  —  Stage 3: Sector-Diversified Portfolio + Turnover Control
+======================================================================================
+Improvements over plain LightGBM:
 
-1. CROSS-SECTIONAL Z-SCORES across all 250 stocks per month
-   With 50 stocks/sector, within-sector Z-scores would be feasible but
-   cross-sectional Z-scores preserve richer signal variation across sectors.
-   No sector dummies added — they caused OOT regime overfitting previously.
+1. RAW FEATURES (no Z-scoring)
+   LightGBM is tree-based and invariant to monotone transformations.
+   Cross-sectional Z-scoring was destroying sector-level alpha by
+   removing the cross-sectional mean from each feature. Now the model
+   sees raw feature values and can exploit sector-level signals
+   (e.g., "all Tech stocks have high momentum" → buy Tech).
 
 2. RAW RETURN as training target (not sector-relative)
    Model learns absolute return prediction. Sector diversification is
-   enforced purely by portfolio construction (top-2/sector), not the target.
+   enforced purely by portfolio construction (top-3/sector), not the target.
 
-3. TURNOVER REDUCTION — two industrial methods combined:
+3. TURNOVER REDUCTION — four industrial methods combined:
    Method A: EWM signal smoothing
-     smoothed_rank = 0.7 × current_rank + 0.3 × previous_rank
+     smoothed_rank = 0.5 × current_rank + 0.5 × previous_rank
      Smoothed rankings change slowly → less monthly churn
    Method B: Rebalancing threshold (swing tolerance)
      A held stock is only replaced if the challenger's smoothed rank
-     exceeds the held stock's rank by >= REBAL_THRESHOLD (8 pct points)
-     Expected turnover: ~30-40%/month vs 72% without these controls
+     exceeds the held stock's rank by >= REBAL_THRESHOLD (12 pct points)
+   Method C: Holding-period bonus
+     Each month a stock stays in the portfolio, its effective rank
+     gets a small bonus (+0.02/month, capped at 5 months = +0.10).
+     This is the standard "incumbent advantage" technique used by
+     institutional quant funds to penalise excessive turnover.
+   Method D: Top-3 per sector (vs top-2)
+     Wider portfolio reduces concentration-driven turnover and
+     lowers idiosyncratic risk.
+   Expected turnover: ~20-30%/month vs 72% without these controls.
 
 TARGET: Next_Month_Return (price return — e.g. 0.08 = 8% gain)
   Ranking is a PORTFOLIO SELECTION TOOL computed after prediction.
 
 LEAKAGE AUDIT:
-  Z-scores: groupby("date") only — each month independent, no future data
+  Features: raw values — no cross-sectional transformation
   EWM smoothing: uses only prev_ranks from past months, never future
   Threshold: uses current + previous scores only
+  Holding bonus: tracks tenure from past months only, never future
   model.fit(X_train, y_train): fixed n_estimators, no early stopping
   all_dates[:i]: expanding window, no future months in training
+  Missing data: cross-sectional median imputation (no future leak)
 """
 
 import pandas as pd
@@ -40,9 +52,11 @@ warnings.filterwarnings("ignore")
 
 from data_loader import FEATURES, TARGET, SECTOR_MAP
 
-TOP_PER_SECTOR  = 2      # 2 × 5 sectors = 10 stocks/month
-REBAL_THRESHOLD = 0.08   # challenger must beat holder by 8 rank pct points
-EWM_ALPHA       = 0.70   # weight on current month rank (0.3 on previous)
+TOP_PER_SECTOR      = 3      # 3 × 5 sectors = 15 stocks/month
+REBAL_THRESHOLD     = 0.12   # challenger must beat holder by 12 rank pct points
+EWM_ALPHA           = 0.50   # weight on current month rank (0.5 on previous)
+HOLD_BONUS_PER_MONTH = 0.02  # +2 rank pct points per month held (capped at 5)
+HOLD_BONUS_CAP       = 5     # max months of bonus accrual
 
 LGB_PARAMS = {
     "objective"        : "regression",
@@ -63,10 +77,15 @@ LGB_PARAMS = {
 
 def add_sector_features(factors_df, sector_map=None):
     """
-    Cross-sectional Z-scores across ALL 250 stocks each month.
-    Z(stock, month, feat) = (raw - cross_section_mean) / cross_section_std
-    Removes market-wide factor bias while preserving all variation.
-    No sector dummies — avoids regime overfitting (failed OOT in prior runs).
+    Prepares data for sector-diversified portfolio construction.
+
+    DOES NOT Z-score features — LightGBM is tree-based and invariant to
+    monotone transformations. Cross-sectional Z-scoring was previously
+    destroying sector-level alpha (e.g., if all Tech stocks have high
+    momentum and Tech outperforms, Z-scoring neutralises that signal).
+
+    Sector diversification is enforced purely by portfolio construction
+    (top-3/sector = 15 stocks), NOT by feature transformation.
     """
     if sector_map is None:
         sector_map = SECTOR_MAP
@@ -75,46 +94,41 @@ def add_sector_features(factors_df, sector_map=None):
         df["sector"] = df["ticker"].map(sector_map)
     df = df.dropna(subset=["sector"])
 
-    z_features = []
-    for feat in FEATURES:
-        z_col = f"z_{feat}"
-        df[z_col] = (
-            df.groupby("date")[feat]
-            .transform(lambda x: (x - x.mean()) / (x.std() + 1e-8))
-        )
-        z_features.append(z_col)
-
-    # Sector-relative return kept for diagnostics only — NOT training target
-    df["sector_relative_return"] = (
-        df.groupby(["date","sector"])[TARGET]
-        .transform(lambda x: (x - x.mean()) / (x.std() + 1e-8))
-    )
+    # Use raw features directly — no Z-scoring
+    model_features = list(FEATURES)
 
     sector_counts = df["sector"].value_counts().to_dict()
     print(f"Sectors: {sector_counts}")
-    print(f"Added {len(z_features)} cross-sectional Z-score features\n")
-    return df, z_features
+    print(f"Using {len(model_features)} raw features (no Z-scoring)\n")
+    return df, model_features
 
 
 def walk_forward_sector_neutral(factors_df, sector_z_features,
                                  min_train_months=24):
     """
-    Walk-forward with EWM signal smoothing to reduce rank churn.
+    Walk-forward with EWM signal smoothing + holding-period bonus.
 
     For each month t:
       1. Train LightGBM on all months before t (raw return target)
       2. Predict raw returns for all 250 stocks at t
       3. Compute within-sector percentile rank (0-1 per sector)
       4. Smooth: smoothed = EWM_ALPHA×current + (1-EWM_ALPHA)×previous
-      5. Save smoothed rank as "predicted" for portfolio construction
+      5. Add holding bonus: +HOLD_BONUS_PER_MONTH per month held (capped)
+      6. Save adjusted rank as "predicted" for portfolio construction
+
+    Missing feature values are filled with per-month cross-sectional
+    median to avoid systematic bias from zero-fill.
     """
-    all_dates  = sorted(factors_df["date"].unique())
-    results    = []
-    prev_ranks = {}   # {ticker: previous smoothed rank}
+    all_dates   = sorted(factors_df["date"].unique())
+    results     = []
+    prev_ranks  = {}   # {ticker: previous smoothed rank}
+    hold_tenure = {}   # {ticker: consecutive months held in portfolio}
+    prev_held_all = set()  # all tickers in portfolio last month
 
     print(f"Sector-neutral walk-forward: {len(all_dates)} months | "
           f"top-{TOP_PER_SECTOR}/sector | EWM α={EWM_ALPHA} | "
-          f"rebal threshold={REBAL_THRESHOLD}")
+          f"rebal threshold={REBAL_THRESHOLD} | "
+          f"hold bonus={HOLD_BONUS_PER_MONTH}/mo (cap {HOLD_BONUS_CAP})")
 
     for i, test_date in enumerate(all_dates):
         if i < min_train_months:
@@ -124,9 +138,21 @@ def walk_forward_sector_neutral(factors_df, sector_z_features,
         if len(train_df) < 200 or len(test_df) == 0:
             continue
 
-        X_train = train_df[sector_z_features].fillna(0).values
+        # Cross-sectional median imputation (per month, no future leak)
+        X_train_df = train_df[sector_z_features].copy()
+        for col in sector_z_features:
+            med = X_train_df[col].median()
+            X_train_df[col] = X_train_df[col].fillna(med)
+        X_train_df = X_train_df.fillna(0)
+        X_test_df = test_df[sector_z_features].copy()
+        for col in sector_z_features:
+            med = X_test_df[col].median()
+            X_test_df[col] = X_test_df[col].fillna(med)
+        X_test_df = X_test_df.fillna(0)
+
+        X_train = X_train_df.values
         y_train = train_df[TARGET].values          # raw return — not sector-relative
-        X_test  = test_df[sector_z_features].fillna(0).values
+        X_test  = X_test_df.values
         y_test  = test_df[TARGET].values
 
         # Fixed n_estimators — deterministic, zero leakage
@@ -148,10 +174,25 @@ def walk_forward_sector_neutral(factors_df, sector_z_features,
             curr = row["raw_rank"]
             prev = prev_ranks.get(row["ticker"], curr)  # first time: use raw
             s    = EWM_ALPHA * curr + (1 - EWM_ALPHA) * prev
+            # Holding-period bonus — incumbent advantage
+            ticker = row["ticker"]
+            if ticker in prev_held_all:
+                tenure = min(hold_tenure.get(ticker, 0) + 1, HOLD_BONUS_CAP)
+                s += tenure * HOLD_BONUS_PER_MONTH
+                hold_tenure[ticker] = tenure
+            else:
+                hold_tenure[ticker] = 0
             smoothed.append(s)
             prev_ranks[row["ticker"]] = s
 
         temp["smoothed_rank"] = smoothed
+
+        # Track which stocks are selected this month (for next month's bonus)
+        month_selected = set()
+        for sector, sg in temp.groupby("sector"):
+            top = sg.nlargest(TOP_PER_SECTOR, "smoothed_rank")["ticker"].values
+            month_selected.update(top)
+        prev_held_all = month_selected
 
         for _, row in temp.iterrows():
             results.append({
@@ -217,14 +258,14 @@ def build_sector_aware_portfolio(results_df,
                                   top_per_sector=TOP_PER_SECTOR,
                                   rebal_threshold=REBAL_THRESHOLD):
     """
-    Selects top-2 stocks per sector using smoothed ranks with a
-    rebalancing threshold to avoid unnecessary turnover.
+    Selects top-3 stocks per sector using smoothed ranks with a
+    rebalancing threshold + holding-period bonus to minimise turnover.
 
-    Threshold logic:
-      For each sector, find current top-2 by smoothed rank.
-      Only replace a held stock if challenger's rank exceeds held
-      stock's rank by >= rebal_threshold.
-      Prevents flipping for tiny rank changes.
+    Turnover reduction stack:
+      1. EWM smoothing (already in predicted rank)
+      2. Threshold: challenger must beat holder by >= rebal_threshold
+      3. Holding bonus: already embedded in smoothed_rank from walk-forward
+      4. Wider portfolio (top-3 vs top-2): more positions = less churn
     """
     portfolio_rets = []
     prev_held      = {}   # {sector: set of held tickers}

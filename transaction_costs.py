@@ -179,7 +179,7 @@ def plot_cost_scenarios(portfolio_path, turnover_df,
                 label=f"Net {short}  (Sharpe {nm_sharpe:.2f})")
     ax.yaxis.set_major_formatter(mtick.PercentFormatter())
     ax.set_title("Cumulative Return: Gross vs Net of Transaction Costs "
-                 "(17-feature, EWM smoothed)", fontweight="bold", fontsize=13)
+                 "(19-feature, EWM smoothed)", fontweight="bold", fontsize=13)
     ax.set_ylabel("Cumulative Return (%)")
     ax.legend(loc="upper left", fontsize=10)
     ax.axhline(0, color="#a6a6a6", lw=0.8, linestyle=":")

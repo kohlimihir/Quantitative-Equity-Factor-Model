@@ -1,5 +1,5 @@
 """
-model.py  —  Stage 1: Ridge Regression Baseline (17 features)
+model.py  —  Stage 1: Ridge Regression Baseline (19 features)
 =============================================================
 Intentionally simple. Establishes an honest baseline before adding
 complexity. With 250 stocks × 24+ months = ~6,000 training rows,
@@ -7,6 +7,7 @@ Ridge coefficients are statistically reliable.
 
 TARGET: Next_Month_Return (price return, not rank).
 LEAKAGE: scaler fit on train only; all_dates[:i] expanding window.
+         Missing data: cross-sectional median imputation (no future leak).
 """
 
 import pandas as pd
@@ -39,9 +40,20 @@ def walk_forward_validation(factors_df, min_train_months=24):
         if len(train_df) < 200 or len(test_df) == 0:
             continue
 
-        X_train = train_df[FEATURES].fillna(0).values
+        X_train_df = train_df[FEATURES].copy()
+        for col in FEATURES:
+            med = X_train_df[col].median()
+            X_train_df[col] = X_train_df[col].fillna(med)
+        X_train_df = X_train_df.fillna(0)  # fallback if median is NaN
+        X_test_df = test_df[FEATURES].copy()
+        for col in FEATURES:
+            med = X_test_df[col].median()
+            X_test_df[col] = X_test_df[col].fillna(med)
+        X_test_df = X_test_df.fillna(0)    # fallback if median is NaN
+
+        X_train = X_train_df.values
         y_train = train_df[TARGET].values
-        X_test  = test_df[FEATURES].fillna(0).values
+        X_test  = X_test_df.values
         y_test  = test_df[TARGET].values
 
         # Scaler fit ONLY on train — no test statistics leak in
@@ -80,7 +92,7 @@ def evaluate_model(results_df, coef_df):
     ic_ir   = mean_ic / monthly_ic.std() if monthly_ic.std() > 0 else 0
     dir_acc = ((actual > 0) == (predicted > 0)).mean()
 
-    print(f"\n{'='*60}\n   RIDGE BASELINE (17 features)\n{'='*60}")
+    print(f"\n{'='*60}\n   RIDGE BASELINE (19 features)\n{'='*60}")
     print(f"  RMSE: {rmse:.5f} | R²: {r2:.5f}")
     print(f"  Mean IC: {mean_ic:.5f} | IC-IR: {ic_ir:.5f} | DirAcc: {dir_acc:.2%}")
     print(f"\n  Factor coefficients by group:")

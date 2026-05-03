@@ -1,8 +1,8 @@
 """
-data_loader.py  —  250-Stock Universe, 17 Features, Full Caching
+data_loader.py  —  250-Stock Universe, 19 Features, Full Caching
 ================================================================
 Downloads price + fundamental data for 250 S&P 500 stocks (50/sector),
-engineers 17 monthly factors across 8 groups, and caches all raw data
+engineers 19 monthly factors across 8 groups, and caches all raw data
 so subsequent runs skip the download entirely.
 
 TARGET VARIABLE:
@@ -10,15 +10,20 @@ TARGET VARIABLE:
   The model FORECASTS returns. Ranking is computed AFTER prediction as a
   portfolio selection tool — it is NOT the model's target.
 
-17 FEATURES — 8 uncorrelated groups:
+19 FEATURES — 8 uncorrelated groups:
   G1 Momentum   (3): Mom_12_1, Mom_6_1, Mom_1
   G2 Risk       (3): Vol_12, IdioVol, Beta_12
   G3 Technical  (3): High52W, Trend_MA, MaxRet_1M
-  G4 Value      (2): PB_ratio, PE_TTM
-  G5 Quality    (2): ROE, GrossMargin
+  G4 Value      (3): PB_ratio, PE_TTM, EV_EBITDA
+  G5 Quality    (3): ROE, GrossMargin, CashFlowYield
   G6 Growth     (2): RevGrowth_YoY, EarnGrowth_YoY
   G7 Size       (1): LogMktCap
   G8 Liquidity  (1): VolRatio
+
+  REMOVED (poor yfinance coverage / noisy):
+    DividendYield  — many stocks don't pay dividends, field unreliable
+    CurrentRatio   — noisy for financials, weak alpha signal
+    AssetTurnover  — overlaps with existing quality/value metrics
 
 FUNDAMENTAL DATA LEAKAGE CONTROL — 45-day lag:
   Quarterly earnings/balance sheets are announced ~30-45 days after
@@ -26,6 +31,11 @@ FUNDAMENTAL DATA LEAKAGE CONTROL — 45-day lag:
   for prediction month T, we only use fundamental data from quarters
   that ended >= 45 days before the 1st of month T.
   This guarantees every fundamental was publicly available.
+
+MISSING DATA:
+  Fundamental features are imputed with the cross-sectional median
+  for each month (groupby date). This avoids leakage from naive
+  fillna(0) which could systematically bias the model.
 
 CACHING:
   data/daily_prices.parquet   — raw daily adjusted closes
@@ -151,8 +161,8 @@ FEATURES = [
     "Mom_12_1","Mom_6_1","Mom_1",           # G1 Momentum
     "Vol_12","IdioVol","Beta_12",            # G2 Risk
     "High52W","Trend_MA","MaxRet_1M",       # G3 Technical
-    "PB_ratio","PE_TTM",                     # G4 Value
-    "ROE","GrossMargin",                     # G5 Quality
+    "PB_ratio","PE_TTM","EV_EBITDA",        # G4 Value
+    "ROE","GrossMargin","CashFlowYield",    # G5 Quality
     "RevGrowth_YoY","EarnGrowth_YoY",       # G6 Growth
     "LogMktCap",                             # G7 Size
     "VolRatio",                              # G8 Liquidity
@@ -160,14 +170,14 @@ FEATURES = [
 TARGET = "Next_Month_Return"
 
 FEATURE_GROUPS = {
-    "G1 Momentum" :["Mom_12_1","Mom_6_1","Mom_1"],
-    "G2 Risk"     :["Vol_12","IdioVol","Beta_12"],
-    "G3 Technical":["High52W","Trend_MA","MaxRet_1M"],
-    "G4 Value"    :["PB_ratio","PE_TTM"],
-    "G5 Quality"  :["ROE","GrossMargin"],
-    "G6 Growth"   :["RevGrowth_YoY","EarnGrowth_YoY"],
-    "G7 Size"     :["LogMktCap"],
-    "G8 Liquidity":["VolRatio"],
+    "G1 Momentum"  :["Mom_12_1","Mom_6_1","Mom_1"],
+    "G2 Risk"      :["Vol_12","IdioVol","Beta_12"],
+    "G3 Technical" :["High52W","Trend_MA","MaxRet_1M"],
+    "G4 Value"     :["PB_ratio","PE_TTM","EV_EBITDA"],
+    "G5 Quality"   :["ROE","GrossMargin","CashFlowYield"],
+    "G6 Growth"    :["RevGrowth_YoY","EarnGrowth_YoY"],
+    "G7 Size"      :["LogMktCap"],
+    "G8 Liquidity" :["VolRatio"],
 }
 
 
@@ -252,13 +262,33 @@ def _fetch_fundamentals_one(ticker):
                 if m: return pd.to_numeric(df[m[0]], errors="coerce")
             return pd.Series(np.nan, index=df.index)
 
+        # Cash flow statement (for CashFlowYield)
+        try:
+            cfs = t.quarterly_cashflow
+            if cfs is not None and not cfs.empty:
+                cfs = cfs.T.copy()
+            else:
+                cfs = pd.DataFrame()
+        except Exception:
+            cfs = pd.DataFrame()
+
         df = pd.DataFrame({
-            "Revenue"    : find(inc, ["Total Revenue","Revenue"]),
-            "GrossProfit": find(inc, ["Gross Profit","GrossProfit"]),
-            "NetIncome"  : find(inc, ["Net Income","NetIncome"]),
-            "TotalEquity": find(bal, ["Stockholder","Common Stock Equity","Total Equity"]),
-            "TotalAssets": find(bal, ["Total Assets"]),
-            "Shares"     : find(bal, ["Share Issued","Common Stock","Shares"]),
+            "Revenue"          : find(inc, ["Total Revenue","Revenue"]),
+            "GrossProfit"      : find(inc, ["Gross Profit","GrossProfit"]),
+            "NetIncome"        : find(inc, ["Net Income","NetIncome"]),
+            "EBITDA"           : find(inc, ["EBITDA","Normalized EBITDA"]),
+            "TotalEquity"      : find(bal, ["Stockholder","Common Stock Equity","Total Equity"]),
+            "TotalAssets"      : find(bal, ["Total Assets"]),
+            "CurrentLiabilities": find(bal, ["Current Liabilities","CurrentLiabilities"]),
+            "CurrentAssets"    : find(bal, ["Current Assets","CurrentAssets"]),
+            "TotalDebt"        : find(bal, ["Total Debt","Long Term Debt"]),
+            "Shares"           : find(bal, ["Share Issued","Common Stock","Shares"]),
+            "OperatingCashFlow": find(cfs, ["Operating Cash Flow","Cash Flow From Operations",
+                                            "Free Cash Flow"]) if not cfs.empty
+                                 else pd.Series(np.nan, index=bal.index),
+            "DividendsPaid"    : find(cfs, ["Dividends Paid","Cash Dividends Paid",
+                                            "Common Stock Dividend"]) if not cfs.empty
+                                 else pd.Series(np.nan, index=bal.index),
         })
         df.index   = pd.to_datetime(df.index)
         df         = df.sort_index()
@@ -408,7 +438,7 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                 except Exception: pass
 
             # G4 Value (45-day lagged)
-            PB_ratio = np.nan; PE_TTM = np.nan
+            PB_ratio = np.nan; PE_TTM = np.nan; EV_EBITDA = np.nan
             if fund_df is not None and price is not None:
                 try:
                     eq  = _fund_val(fund_df, ticker, current_date, "TotalEquity")
@@ -423,10 +453,22 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                     if len(vq)>=4 and not np.isnan(sh) and sh>0 and not np.isnan(pr):
                         eps  = float(vq.iloc[-4:].sum()) / sh
                         if eps > 0: PE_TTM = float(pr / eps)
+                    # EV/EBITDA — enterprise value / trailing EBITDA
+                    ebitda_q = td[td.index<=cut]["EBITDA"].dropna()
+                    debt_v   = _fund_val(fund_df, ticker, current_date, "TotalDebt")
+                    if (len(ebitda_q) >= 4 and not np.isnan(sh)
+                            and sh > 0 and not np.isnan(pr)):
+                        ttm_ebitda = float(ebitda_q.iloc[-4:].sum())
+                        mkt_cap    = pr * sh
+                        net_debt   = (debt_v if not np.isnan(debt_v) else 0)
+                        ev         = mkt_cap + net_debt
+                        if ttm_ebitda > 0:
+                            EV_EBITDA = float(ev / ttm_ebitda)
                 except Exception: pass
 
             # G5 Quality (45-day lagged)
             ROE = np.nan; GrossMargin = np.nan
+            CurrentRatio = np.nan; CashFlowYield = np.nan
             if fund_df is not None:
                 try:
                     ni = _fund_val(fund_df, ticker, current_date, "NetIncome")
@@ -437,6 +479,19 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                         ROE = float(ni/eq)
                     if not np.isnan(gp) and not np.isnan(rv) and rv!=0:
                         GrossMargin = float(gp/rv)
+                    # Current Ratio = Current Assets / Current Liabilities
+                    ca = _fund_val(fund_df, ticker, current_date, "CurrentAssets")
+                    cl = _fund_val(fund_df, ticker, current_date, "CurrentLiabilities")
+                    if not np.isnan(ca) and not np.isnan(cl) and cl > 0:
+                        CurrentRatio = float(ca / cl)
+                    # CashFlow Yield = Operating Cash Flow / Market Cap
+                    ocf = _fund_val(fund_df, ticker, current_date, "OperatingCashFlow")
+                    if (not np.isnan(ocf) and price is not None
+                            and not np.isnan(sh) and sh > 0):
+                        pr_v = float(price.loc[:daily_end].iloc[-1]) \
+                               if len(price.loc[:daily_end]) > 0 else np.nan
+                        if not np.isnan(pr_v) and pr_v > 0:
+                            CashFlowYield = float(ocf / (pr_v * sh))
                 except Exception: pass
 
             # G6 Growth (45-day lagged)
@@ -476,6 +531,34 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                         VolRatio = float(p1m.std() / (p3m.std()+1e-10))
                 except Exception: pass
 
+            # G9 Efficiency — Asset Turnover = Revenue / Total Assets
+            AssetTurnover = np.nan
+            if fund_df is not None:
+                try:
+                    rv_at = _fund_val(fund_df, ticker, current_date, "Revenue")
+                    ta_at = _fund_val(fund_df, ticker, current_date, "TotalAssets")
+                    if not np.isnan(rv_at) and not np.isnan(ta_at) and ta_at > 0:
+                        AssetTurnover = float(rv_at / ta_at)
+                except Exception: pass
+
+            # G10 Income — Dividend Yield (annualised dividends / price)
+            DividendYield = np.nan
+            if fund_df is not None and price is not None:
+                try:
+                    td_dy = fund_df[fund_df["ticker"]==ticker]
+                    cut_dy = pd.Timestamp(current_date) - pd.Timedelta(days=45)
+                    dv = td_dy[td_dy.index<=cut_dy]["DividendsPaid"].dropna()
+                    if len(dv) >= 4:
+                        # DividendsPaid is typically negative (cash outflow)
+                        ttm_div = float(abs(dv.iloc[-4:].sum()))
+                        pr_dy = float(price.loc[:daily_end].iloc[-1]) \
+                                if len(price.loc[:daily_end]) > 0 else np.nan
+                        sh_dy = _fund_val(fund_df, ticker, current_date, "Shares")
+                        if (not np.isnan(pr_dy) and pr_dy > 0
+                                and not np.isnan(sh_dy) and sh_dy > 0):
+                            DividendYield = float(ttm_div / (pr_dy * sh_dy))
+                except Exception: pass
+
             # Target
             next_ret = ret.iloc[i+1]
             if pd.isna(next_ret):
@@ -487,18 +570,29 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                 "Mom_12_1":Mom_12_1,"Mom_6_1":Mom_6_1,"Mom_1":Mom_1,
                 "Vol_12":Vol_12,"IdioVol":IdioVol,"Beta_12":Beta_12,
                 "High52W":High52W,"Trend_MA":Trend_MA,"MaxRet_1M":MaxRet_1M,
-                "PB_ratio":PB_ratio,"PE_TTM":PE_TTM,
+                "PB_ratio":PB_ratio,"PE_TTM":PE_TTM,"EV_EBITDA":EV_EBITDA,
                 "ROE":ROE,"GrossMargin":GrossMargin,
+                "CurrentRatio":CurrentRatio,"CashFlowYield":CashFlowYield,
                 "RevGrowth_YoY":RevGrowth_YoY,"EarnGrowth_YoY":EarnGrowth_YoY,
                 "LogMktCap":LogMktCap,"VolRatio":VolRatio,
+                "AssetTurnover":AssetTurnover,"DividendYield":DividendYield,
                 TARGET:next_ret,
             })
 
     factors_df = pd.DataFrame(records)
+
+    # Cross-sectional median imputation — fill missing fundamentals
+    # with each month's median (no future data leak)
+    for feat in FEATURES:
+        if feat in factors_df.columns:
+            factors_df[feat] = factors_df.groupby("date")[feat].transform(
+                lambda x: x.fillna(x.median())
+            )
+
     print(f"\nFactor dataset: {len(factors_df):,} rows | "
           f"{factors_df['ticker'].nunique()} stocks | "
           f"{factors_df['date'].nunique()} months | {skipped} skipped")
-    print("\n  Feature coverage:")
+    print("\n  Feature coverage (after median imputation):")
     for grp, feats in FEATURE_GROUPS.items():
         for f in feats:
             if f in factors_df.columns:

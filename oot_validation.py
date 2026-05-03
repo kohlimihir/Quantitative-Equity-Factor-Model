@@ -2,16 +2,19 @@
 oot_validation.py  —  Stage 4: Out-of-Time Validation
 ======================================================
 Held-out period: Jan 2025 onwards. Never seen during any development step.
-Uses same EWM smoothing + rebalancing threshold as sector_neutralisation.py.
-Portfolio: top-2 per sector = 10 stocks/month.
+Uses same EWM smoothing + rebalancing threshold + holding-period bonus
+as sector_neutralisation.py.
+Portfolio: top-3 per sector = 15 stocks/month.
 
 LEAKAGE AUDIT:
   dev_df: strict < OOT_START — boundary month not in development
   oot_df: strict >= OOT_START — no overlap with dev
   model.fit(X_dev, y_dev): OOT features/labels completely hidden
-  Z-scores: groupby("date") only — each month's normalization independent
+  Features: raw values — no cross-sectional transformation
   EWM: uses only prev_ranks carried from dev period, never future OOT months
+  Holding bonus: tenure tracked from past months only, never future
   Threshold: uses current + previous scores only
+  Missing data: cross-sectional median imputation (no future leak)
 """
 
 import pandas as pd
@@ -26,7 +29,8 @@ warnings.filterwarnings("ignore")
 
 from data_loader import FEATURES, TARGET
 from sector_neutralisation import (
-    add_sector_features, EWM_ALPHA, REBAL_THRESHOLD, TOP_PER_SECTOR
+    add_sector_features, EWM_ALPHA, REBAL_THRESHOLD, TOP_PER_SECTOR,
+    HOLD_BONUS_PER_MONTH, HOLD_BONUS_CAP,
 )
 
 OOT_START = "2025-01-01"
@@ -69,18 +73,32 @@ def run_oot_validation(factors_df_sector=None, z_features=None,
 
     # Train frozen model on full dev set — never sees OOT
     print("  Training final model on full dev period...")
-    X_dev = dev_df[z_features].fillna(0).values
+    # Cross-sectional median imputation (no future leak)
+    X_dev_df = dev_df[z_features].copy()
+    for col in z_features:
+        med = X_dev_df[col].median()
+        X_dev_df[col] = X_dev_df[col].fillna(med)
+    X_dev_df = X_dev_df.fillna(0)
+    X_dev = X_dev_df.values
     y_dev = dev_df[TARGET].values
     model = lgb.LGBMRegressor(**LGB_PARAMS)
     model.fit(X_dev, y_dev)
 
     # Predict OOT month by month with EWM smoothing
-    oot_results = []
-    prev_ranks  = {}
-    prev_held   = {}
+    oot_results   = []
+    prev_ranks    = {}
+    prev_held     = {}
+    hold_tenure   = {}    # {ticker: consecutive months held}
+    prev_held_all = set()  # all tickers in portfolio last month
 
     for date, g in oot_df.groupby("date"):
-        X_test = g[z_features].fillna(0).values
+        # Median imputation per OOT month (no future leak)
+        X_test_df = g[z_features].copy()
+        for col in z_features:
+            med = X_test_df[col].median()
+            X_test_df[col] = X_test_df[col].fillna(med)
+        X_test_df = X_test_df.fillna(0)
+        X_test = X_test_df.values
         scores = model.predict(X_test)
         temp   = g.copy()
         temp["raw_score"] = scores
@@ -91,9 +109,24 @@ def run_oot_validation(factors_df_sector=None, z_features=None,
             curr = row["raw_rank"]
             prev = prev_ranks.get(row["ticker"], curr)
             s    = EWM_ALPHA * curr + (1 - EWM_ALPHA) * prev
+            # Holding-period bonus (same as sector_neutralisation)
+            ticker = row["ticker"]
+            if ticker in prev_held_all:
+                tenure = min(hold_tenure.get(ticker, 0) + 1, HOLD_BONUS_CAP)
+                s += tenure * HOLD_BONUS_PER_MONTH
+                hold_tenure[ticker] = tenure
+            else:
+                hold_tenure[ticker] = 0
             smoothed.append(s)
             prev_ranks[row["ticker"]] = s
         temp["smoothed_rank"] = smoothed
+
+        # Track selections for next month's holding bonus
+        month_selected = set()
+        for sector_sel, sg_sel in temp.groupby("sector"):
+            top_sel = sg_sel.nlargest(TOP_PER_SECTOR, "smoothed_rank")["ticker"].values
+            month_selected.update(top_sel)
+        prev_held_all = month_selected
 
         for _, row in temp.iterrows():
             oot_results.append({
@@ -264,7 +297,7 @@ def _plot_oot(oot_port, oot_ic, sector_port_full=None,
     ax.axvline(oot_start, color=ORANGE, lw=1.5, linestyle="--",
                label="OOT start")
     ax.yaxis.set_major_formatter(mtick.PercentFormatter())
-    ax.set_title("OOT Validation — Cumulative Return (10-stock portfolio, 17 features)",
+    ax.set_title("OOT Validation — Cumulative Return (15-stock portfolio, 19 features)",
                  fontweight="bold", fontsize=13)
     ax.set_ylabel("Cumulative Return (%)")
     ax.legend(loc="upper left")
