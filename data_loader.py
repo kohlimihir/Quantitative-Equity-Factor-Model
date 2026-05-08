@@ -180,6 +180,24 @@ FEATURE_GROUPS = {
     "G8 Liquidity" :["VolRatio"],
 }
 
+# ── Feature Engineering Configuration ──────────────────────────────────────────
+FEATURE_ENGINEERING_CONFIG = {
+    "enable_interactions": False,      # Enable interaction features between groups
+    "enable_nonlinear": False,         # Enable non-linear transformations
+    "enable_sector_relative": False,   # Enable sector-relative features
+    "interaction_pairs": [             # Pairs of groups to create interactions
+        ("G1 Momentum", "G4 Value"),   # Momentum × Value
+        ("G2 Risk", "G7 Size"),        # Risk × Size
+        ("G3 Technical", "G5 Quality"), # Technical × Quality
+    ],
+    "nonlinear_features": [            # Features to apply non-linear transforms
+        "Mom_12_1", "Mom_6_1", "Vol_12", "LogMktCap", "PB_ratio", "PE_TTM"
+    ],
+    "sector_relative_features": [      # Features to make sector-relative
+        "Mom_12_1", "Vol_12", "PB_ratio", "ROE", "LogMktCap"
+    ],
+}
+
 
 # ── Cache helpers ──────────────────────────────────────────────────────────────
 def _cache_fresh(path, max_hours=CACHE_MAX_HOURS):
@@ -643,6 +661,237 @@ def check_feature_correlation(factors_df, threshold=0.75):
     return mean_corr
 
 
+def add_interaction_features(factors_df, config=None):
+    """
+    Add interaction features between factor groups.
+    
+    Creates multiplicative interactions between features from different groups
+    to capture non-linear relationships (e.g., momentum × value, risk × size).
+    
+    Interaction features use automatic naming: "Feature1_x_Feature2"
+    
+    Args:
+        factors_df: DataFrame with base features
+        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
+    
+    Returns:
+        DataFrame with added interaction features
+        
+    Validates: Requirements 2.5
+    """
+    if config is None:
+        config = FEATURE_ENGINEERING_CONFIG
+    
+    if not config.get("enable_interactions", False):
+        return factors_df
+    
+    print("\n=== Adding Interaction Features ===")
+    
+    interaction_pairs = config.get("interaction_pairs", [])
+    new_features = []
+    
+    for group1_name, group2_name in interaction_pairs:
+        group1_features = FEATURE_GROUPS.get(group1_name, [])
+        group2_features = FEATURE_GROUPS.get(group2_name, [])
+        
+        for feat1 in group1_features:
+            for feat2 in group2_features:
+                if feat1 in factors_df.columns and feat2 in factors_df.columns:
+                    interaction_name = f"{feat1}_x_{feat2}"
+                    
+                    # Create interaction: product of the two features
+                    # Handle NaN values gracefully
+                    factors_df[interaction_name] = factors_df[feat1] * factors_df[feat2]
+                    
+                    new_features.append(interaction_name)
+                    print(f"  Created: {interaction_name}")
+    
+    print(f"  Total interaction features added: {len(new_features)}")
+    
+    return factors_df
+
+
+def add_nonlinear_transformations(factors_df, config=None):
+    """
+    Add non-linear transformations of existing features.
+    
+    Applies log, sqrt, and rank transformations to capture non-linear
+    relationships in the data. Handles NaN values and negative values gracefully.
+    
+    Transformations:
+    - log: log(1 + x) for positive values, handles negatives via log(1 + |x|) * sign(x)
+    - sqrt: sqrt(|x|) * sign(x) to handle negative values
+    - rank: cross-sectional percentile rank within each month
+    
+    Args:
+        factors_df: DataFrame with base features
+        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
+    
+    Returns:
+        DataFrame with added non-linear transformation features
+        
+    Validates: Requirements 2.6
+    """
+    if config is None:
+        config = FEATURE_ENGINEERING_CONFIG
+    
+    if not config.get("enable_nonlinear", False):
+        return factors_df
+    
+    print("\n=== Adding Non-Linear Transformations ===")
+    
+    nonlinear_features = config.get("nonlinear_features", [])
+    new_features = []
+    
+    for feat in nonlinear_features:
+        if feat not in factors_df.columns:
+            continue
+        
+        # Log transformation: log(1 + x) for positive, log(1 + |x|) * sign(x) for negative
+        log_name = f"{feat}_log"
+        factors_df[log_name] = factors_df[feat].apply(
+            lambda x: np.log1p(x) if x >= 0 else -np.log1p(-x) if not np.isnan(x) else np.nan
+        )
+        new_features.append(log_name)
+        
+        # Sqrt transformation: sqrt(|x|) * sign(x)
+        sqrt_name = f"{feat}_sqrt"
+        factors_df[sqrt_name] = factors_df[feat].apply(
+            lambda x: np.sqrt(abs(x)) * np.sign(x) if not np.isnan(x) else np.nan
+        )
+        new_features.append(sqrt_name)
+        
+        # Rank transformation: cross-sectional percentile rank within each month
+        rank_name = f"{feat}_rank"
+        factors_df[rank_name] = factors_df.groupby("date")[feat].rank(pct=True)
+        new_features.append(rank_name)
+        
+        print(f"  Created: {log_name}, {sqrt_name}, {rank_name}")
+    
+    print(f"  Total non-linear features added: {len(new_features)}")
+    
+    return factors_df
+
+
+def add_sector_relative_features(factors_df, config=None):
+    """
+    Add sector-relative feature transformations.
+    
+    Transforms features to be relative to sector medians/means, creating
+    sector-neutral signals that capture within-sector relative strength.
+    
+    Two transformations:
+    - z-score: (value - sector_mean) / sector_std
+    - percentile: percentile rank within sector for each month
+    
+    Args:
+        factors_df: DataFrame with base features and 'sector' column
+        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
+    
+    Returns:
+        DataFrame with added sector-relative features
+        
+    Validates: Requirements 2.9
+    """
+    if config is None:
+        config = FEATURE_ENGINEERING_CONFIG
+    
+    if not config.get("enable_sector_relative", False):
+        return factors_df
+    
+    if "sector" not in factors_df.columns:
+        print("\n⚠  Warning: 'sector' column not found, skipping sector-relative features")
+        return factors_df
+    
+    print("\n=== Adding Sector-Relative Features ===")
+    
+    sector_relative_features = config.get("sector_relative_features", [])
+    new_features = []
+    
+    for feat in sector_relative_features:
+        if feat not in factors_df.columns:
+            continue
+        
+        # Z-score: (value - sector_mean) / sector_std
+        zscore_name = f"{feat}_sector_z"
+        factors_df[zscore_name] = factors_df.groupby(["date", "sector"])[feat].transform(
+            lambda x: (x - x.mean()) / (x.std() + 1e-10) if x.std() > 0 else 0
+        )
+        new_features.append(zscore_name)
+        
+        # Percentile rank within sector
+        pct_name = f"{feat}_sector_pct"
+        factors_df[pct_name] = factors_df.groupby(["date", "sector"])[feat].rank(pct=True)
+        new_features.append(pct_name)
+        
+        print(f"  Created: {zscore_name}, {pct_name}")
+    
+    print(f"  Total sector-relative features added: {len(new_features)}")
+    
+    return factors_df
+
+
+def apply_feature_engineering(factors_df, config=None):
+    """
+    Apply all feature engineering transformations.
+    
+    This is the main entry point for feature engineering enhancements.
+    Applies interaction features, non-linear transformations, and
+    sector-relative features based on configuration.
+    
+    All transformations maintain temporal integrity (no future data leakage).
+    
+    Args:
+        factors_df: DataFrame with base features
+        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
+    
+    Returns:
+        DataFrame with all engineered features added
+        
+    Validates: Requirements 2.5, 2.6, 2.9
+    """
+    if config is None:
+        config = FEATURE_ENGINEERING_CONFIG
+    
+    print("\n" + "="*70)
+    print("  FEATURE ENGINEERING ENHANCEMENTS")
+    print("="*70)
+    
+    original_feature_count = len([c for c in factors_df.columns 
+                                   if c not in ["date", "ticker", "sector", TARGET]])
+    
+    # Apply transformations in sequence
+    factors_df = add_interaction_features(factors_df, config)
+    factors_df = add_nonlinear_transformations(factors_df, config)
+    factors_df = add_sector_relative_features(factors_df, config)
+    
+    # Cross-sectional median imputation for new features
+    # (same approach as base features - no future data leakage)
+    new_features = [c for c in factors_df.columns 
+                    if c not in ["date", "ticker", "sector", TARGET] 
+                    and c not in FEATURES]
+    
+    if new_features:
+        print(f"\n=== Imputing Missing Values for New Features ===")
+        for feat in new_features:
+            factors_df[feat] = factors_df.groupby("date")[feat].transform(
+                lambda x: x.fillna(x.median())
+            )
+        print(f"  Applied cross-sectional median imputation to {len(new_features)} new features")
+    
+    final_feature_count = len([c for c in factors_df.columns 
+                                if c not in ["date", "ticker", "sector", TARGET]])
+    
+    print("\n" + "="*70)
+    print(f"  Feature Engineering Complete")
+    print(f"  Original features: {original_feature_count}")
+    print(f"  New features: {final_feature_count - original_feature_count}")
+    print(f"  Total features: {final_feature_count}")
+    print("="*70)
+    
+    return factors_df
+
+
 if __name__ == "__main__":
     os.makedirs(CACHE_DIR, exist_ok=True)
     prices          = download_price_data()
@@ -650,6 +899,10 @@ if __name__ == "__main__":
     monthly_returns.to_csv(os.path.join(CACHE_DIR, "monthly_returns.csv"))
     fund_df         = download_fundamentals()
     factors_df      = compute_factors(monthly_returns, prices, fund_df)
+    
+    # Apply feature engineering enhancements (disabled by default)
+    factors_df = apply_feature_engineering(factors_df)
+    
     factors_df.to_csv(os.path.join(CACHE_DIR, "factor_features.csv"), index=False)
     check_feature_correlation(factors_df)
-    print(f"\nFeatures: {FEATURES}\nTarget  : {TARGET}")
+    print(f"\nBase Features: {FEATURES}\nTarget  : {TARGET}")

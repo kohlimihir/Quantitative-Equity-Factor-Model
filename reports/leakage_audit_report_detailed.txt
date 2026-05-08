@@ -1,0 +1,100 @@
+================================================================================
+COMPREHENSIVE LEAKAGE DETECTION AUDIT REPORT
+================================================================================
+
+Audit Timestamp: 2026-05-06T22:22:11.005055
+Overall Assessment: FAILED
+Total Tests: 8
+Tests Passed: 6
+Tests Failed: 2
+
+--------------------------------------------------------------------------------
+PERFORMANCE ANOMALY ANALYSIS
+--------------------------------------------------------------------------------
+Anomaly Detected: YES
+In-sample IC: 0.00471
+OOT IC: 0.03342
+Difference: 0.02871
+Threshold: 0.02000
+
+⚠️  CRITICAL: Performance anomaly indicates potential data leakage!
+OOT performance should NOT exceed in-sample performance.
+
+--------------------------------------------------------------------------------
+TEST RESULTS BY CATEGORY
+--------------------------------------------------------------------------------
+
+
+TEMPORAL:
+----------------------------------------
+  ✓ PASS - temporal_boundaries
+
+
+IMPUTATION:
+----------------------------------------
+  ✓ PASS - cross_sectional_imputation
+
+
+TARGET:
+----------------------------------------
+  ✗ FAIL - target_variable
+    Severity: CRITICAL
+    Violations: 1
+    Details: Target values found for final date 2026-04-30 00:00:00: 239 observations. This suggests future data leakage.
+    Flags: TARGET_VARIABLE_FAILED; TARGET_LEAKAGE_DETECTED; REVIEW_TARGET_CONSTRUCTION; VIOLATIONS_COUNT_1
+
+
+EWM_SMOOTHING:
+----------------------------------------
+  ✓ PASS - ewm_future_data_prevention
+
+
+PERFORMANCE:
+----------------------------------------
+  ✗ FAIL - performance_anomaly
+    Severity: CRITICAL
+    Violations: 1
+    Details: OOT IC (0.03342) exceeds in-sample IC (0.00471) by 0.02871, above threshold 0.02
+    Flags: PERFORMANCE_ANOMALY_FAILED; PERFORMANCE_ANOMALY_DETECTED; POTENTIAL_DATA_LEAKAGE; REQUIRES_URGENT_INVESTIGATION; VIOLATIONS_COUNT_1
+
+--------------------------------------------------------------------------------
+CRITICAL VIOLATIONS
+--------------------------------------------------------------------------------
+
+1. Target values found for final date 2026-04-30 00:00:00: 239 observations. This suggests future data leakage.
+2. OOT IC (0.03342) exceeds in-sample IC (0.00471) by 0.02871, above threshold 0.02
+
+--------------------------------------------------------------------------------
+AUTOMATED FLAGS SUMMARY
+--------------------------------------------------------------------------------
+
+  • FUNDAMENTAL_LAG_COMPLIANT
+  • PERFORMANCE_ANOMALY
+  • PERFORMANCE_ANOMALY_DETECTED
+  • PERFORMANCE_ANOMALY_FAILED
+  • POTENTIAL_DATA_LEAKAGE
+  • POTENTIAL_LEAKAGE
+  • REQUIRES_INVESTIGATION
+  • REQUIRES_URGENT_INVESTIGATION
+  • REVIEW_TARGET_CONSTRUCTION
+  • TARGET_LEAKAGE_DETECTED
+  • TARGET_VARIABLE_FAILED
+  • VIOLATIONS_COUNT_1
+
+--------------------------------------------------------------------------------
+RECOMMENDATIONS
+--------------------------------------------------------------------------------
+
+2 test(s) failed with 2 critical violation(s). URGENT: Performance anomaly detected - OOT performance significantly exceeds in-sample. This is a strong indicator of data leakage. Prioritize investigation. Recommended actions: (1) Address all CRITICAL severity issues first, (2) Review feature engineering and target construction, (3) Validate temporal boundaries across all data sources, (4) Re-run audit after fixes to confirm resolution.
+
+Test-specific recommendations:
+
+target_variable:
+  Target variable leakage detected. Ensure target uses only subsequent month returns. Verify that target calculation does not access future data or same-period information.
+
+performance_anomaly:
+  CRITICAL: OOT performance exceeds in-sample performance, indicating potential data leakage. Actions: (1) Review all feature engineering for future data access, (2) Validate target variable construction, (3) Check scaler fitting and preprocessing steps, (4) Verify walk-forward validation windows.
+
+================================================================================
+END OF REPORT
+================================================================================

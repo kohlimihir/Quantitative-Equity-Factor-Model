@@ -1,0 +1,7 @@
+profile,model,ic,alpha,target_turnover,ewm_alpha,learning_rate,num_leaves
+baseline,Ridge,-0.057905476716793004,1.0,0.25,0.5,,
+baseline,LightGBM,-0.25590553043232883,,0.25,0.5,0.03,31.0
+low-turnover,Ridge,-0.056725353608062926,10.0,0.2,0.3,,
+low-turnover,LightGBM,-0.25503217893806635,,0.2,0.3,0.01,15.0
+high-IC,Ridge,-0.057905476716793004,1.0,0.35,0.7,,
+high-IC,LightGBM,-0.24269185388906436,,0.35,0.7,0.05,63.0

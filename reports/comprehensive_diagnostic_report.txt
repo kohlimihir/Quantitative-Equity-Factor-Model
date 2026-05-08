@@ -1,0 +1,59 @@
+==============================================================================
+  COMPREHENSIVE DIAGNOSTIC REPORT
+==============================================================================
+
+Generated: 2026-05-08 22:42:40
+Configuration: baseline
+Total Runtime: 14.2 minutes
+
+PIPELINE CONFIGURATION:
+------------------------------------------------------------------------------
+  Universe: 239 stocks
+  Time Periods: 71 months
+  Features: 19
+  Min Train Months: 24
+  Fundamental Lag: 45 days
+
+DATA QUALITY:
+------------------------------------------------------------------------------
+  Leakage Detection: ✓ ENABLED
+    All Checks Passed: ✓ YES
+  Feature Analysis: ✓ ENABLED
+    Top Features: Beta_12, Vol_12, Mom_12_1
+
+MODEL PERFORMANCE:
+------------------------------------------------------------------------------
+  Model                          Mean IC      IC-IR     Sharpe
+  ----------------------------------------------------------------------------
+  Ridge                          0.01464    0.08298      1.029
+  Lightgbm                       0.01324    0.10067      1.152
+  Sector Neutral                 0.00146    0.01177      0.864
+
+ADVANCED FEATURES:
+------------------------------------------------------------------------------
+  Hyperparameter Tuning: ⚠ DISABLED
+  Ensemble Models: ⚠ DISABLED
+  Sector-Specific Models: ⚠ DISABLED
+
+TURNOVER ANALYSIS:
+------------------------------------------------------------------------------
+  Mean Monthly Turnover: 34.9%
+  Annual Turnover: 419%
+  Target Turnover: 25.0%
+  Status: ⚠ ABOVE TARGET
+
+OUT-OF-TIME VALIDATION:
+------------------------------------------------------------------------------
+  OOT Months: 16
+  OOT Mean IC: 0.03998
+  OOT IC-IR: 0.28189
+  OOT Sharpe: 0.886
+
+NET PERFORMANCE (10bps costs):
+------------------------------------------------------------------------------
+  Net Sharpe Ratio: 0.848
+  Cumulative Return: 152.04%
+
+==============================================================================
+  DIAGNOSTIC REPORT COMPLETE
+==============================================================================

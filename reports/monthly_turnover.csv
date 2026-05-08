@@ -1,0 +1,47 @@
+date,stocks_sold,stocks_bought,n_changed,n_stocks,turnover
+2022-07-31,"['HAL', 'SLB']","['OXY', 'PR']",2,15,0.13333333333333333
+2022-08-31,"['ACAD', 'AMTD', 'BIIB', 'CRM', 'MDT', 'NCLH', 'NET', 'PR', 'WTW']","['ABBV', 'ALL', 'CI', 'FTNT', 'GRMN', 'HUM', 'INTC', 'MTB', 'XOM']",9,15,0.6
+2022-09-30,"['ABBV', 'FTNT', 'GRMN', 'INTC', 'UNM', 'XOM']","['CMG', 'INTU', 'ORCL', 'PSX', 'STT', 'WAT']",6,15,0.4
+2022-10-31,"['ALL', 'CI', 'HUM', 'META', 'MTB', 'MTDR', 'ORCL', 'STT']","['AMTD', 'COHU', 'FNF', 'FOLD', 'MASI', 'MS', 'NET', 'XYL']",8,15,0.5333333333333333
+2022-11-30,"['CCL', 'COHU', 'KR']","['MCHP', 'NFLX', 'SBUX']",3,15,0.2
+2022-12-31,"['MASI', 'MS', 'PSX', 'SBUX', 'WAT', 'XYL']","['ALGN', 'DKNG', 'ENPH', 'NTRA', 'SM', 'STT']",6,15,0.4
+2023-01-31,"['ALGN', 'CMG', 'DKNG', 'ENPH', 'FOLD', 'OXY', 'SM']","['DIS', 'DXCM', 'F', 'FSLR', 'ISRG', 'ROK', 'VRSK']",7,15,0.4666666666666667
+2023-02-28,"['DIS', 'F', 'FNF', 'NET', 'VRSK']","['AMAT', 'BA', 'BAC', 'BBY', 'NCLH']",5,15,0.3333333333333333
+2023-03-31,"['AMAT', 'AMTD', 'MCHP', 'NTRA', 'ROK', 'STT']","['ACAD', 'CFG', 'CGNX', 'ICE', 'PR', 'STX']",6,15,0.4
+2023-04-30,"['ICE', 'INTU', 'ISRG', 'PR']","['BKR', 'IDXX', 'KEY', 'MKSI']",4,15,0.26666666666666666
+2023-05-31,"['ACAD', 'CFG', 'DXCM', 'FSLR', 'KEY', 'NCLH']","['ALGN', 'BLK', 'CZR', 'FDX', 'IQV', 'PRU']",6,15,0.4
+2023-06-30,"['ALGN', 'BBY', 'BLK', 'CGNX', 'IDXX', 'NFLX']","['ACAD', 'CCL', 'META', 'NTRA', 'STT', 'TGT']",6,15,0.4
+2023-07-31,"['ACAD', 'BA', 'BKR', 'CCL', 'CZR', 'IQV', 'MKSI', 'PRU']","['ALGN', 'COP', 'DIS', 'DKNG', 'FORM', 'MMM', 'PODD', 'SYF']",8,15,0.5333333333333333
+2023-08-31,"['BAC', 'COP', 'MMM']","['AMTD', 'FSLR', 'GNRC']",3,15,0.2
+2023-09-30,"['ALGN', 'AMTD', 'FORM', 'FSLR', 'META', 'PODD', 'STX']","['ACAD', 'BMY', 'COF', 'CRWD', 'DVN', 'MKSI', 'NVDA']",7,15,0.4666666666666667
+2023-10-31,"['ACAD', 'BMY', 'CRWD', 'FDX', 'GNRC', 'MKSI', 'NTRA', 'STT', 'TGT']","['ADBE', 'AMZN', 'BAX', 'HBAN', 'ISRG', 'LLY', 'LRCX', 'MTDR', 'SM']",9,15,0.6
+2023-11-30,"['ADBE', 'AMZN', 'COF', 'LLY']","['DXCM', 'ENTG', 'FITB', 'SIRI']",4,15,0.26666666666666666
+2023-12-31,"['DIS', 'DKNG', 'DXCM', 'FITB', 'ISRG', 'LRCX', 'SYF']","['ACAD', 'CFG', 'CZR', 'FOLD', 'NCLH', 'TFC', 'WDC']",7,15,0.4666666666666667
+2024-01-31,"['ACAD', 'ENTG', 'FOLD', 'HBAN', 'NCLH', 'TFC']","['A', 'IQV', 'KEY', 'PANW', 'PENN', 'USB']",6,15,0.4
+2024-02-29,['IQV'],['MASI'],1,15,0.06666666666666667
+2024-03-31,"['A', 'DVN', 'PANW', 'PENN', 'SM', 'WDC']","['ANET', 'APA', 'DKNG', 'INTC', 'PODD', 'SLB']",6,15,0.4
+2024-04-30,"['ANET', 'APA', 'CZR', 'INTC', 'NVDA', 'SLB']","['BA', 'CRWD', 'DG', 'GNRC', 'PANW', 'STX']",6,15,0.4
+2024-05-31,"['DKNG', 'GNRC', 'SIRI', 'STX']","['DLTR', 'ENPH', 'MGM', 'MKSI']",4,15,0.26666666666666666
+2024-06-30,"['KEY', 'MGM', 'MKSI', 'PODD']","['CZR', 'FNF', 'IPGP', 'NVCR']",4,15,0.26666666666666666
+2024-07-31,"['CRWD', 'CZR', 'FNF', 'PANW']","['AMD', 'FITB', 'MKSI', 'NFLX']",4,15,0.26666666666666666
+2024-08-31,"['BA', 'BAX', 'CFG', 'FITB', 'MASI', 'MKSI', 'NFLX']","['ALGN', 'DKNG', 'DXCM', 'GNRC', 'IBKR', 'MRVL', 'SYF']",7,15,0.4666666666666667
+2024-09-30,"['AMD', 'DG', 'DLTR', 'IPGP', 'MRVL', 'MTDR']","['BE', 'CCL', 'MKSI', 'NVDA', 'PENN', 'TER']",6,15,0.4
+2024-10-31,"['ALGN', 'DKNG', 'IBKR', 'NVCR', 'NVDA', 'SYF', 'TER']","['FOLD', 'FORM', 'KEY', 'PODD', 'QCOM', 'TFC', 'TGT']",7,15,0.4666666666666667
+2024-11-30,"['CCL', 'FOLD', 'GNRC', 'PENN', 'TGT', 'USB']","['BA', 'DG', 'DLTR', 'NVCR', 'SF', 'SIRI']",6,15,0.4
+2024-12-31,"['BE', 'DLTR', 'DXCM', 'FORM', 'NVCR', 'PODD', 'QCOM', 'SF', 'TFC']","['FDX', 'GL', 'HUM', 'IQV', 'LLY', 'MSCI', 'NET', 'NVDA', 'TSLA']",9,15,0.6
+2025-01-31,"['BA', 'MKSI', 'MSCI']","['BE', 'CFG', 'QRVO']",3,15,0.2
+2025-02-28,"['FDX', 'HUM', 'IQV', 'LLY', 'NET', 'NVDA', 'QRVO', 'SIRI']","['ADBE', 'INSP', 'INTC', 'NOW', 'NVCR', 'PLUG', 'RCL', 'REGN']",8,15,0.5333333333333333
+2025-03-31,"['ADBE', 'ENPH', 'INTC', 'KEY', 'NOW', 'RCL']","['ADI', 'AMD', 'DVN', 'INTU', 'LOW', 'RJF']",6,15,0.4
+2025-04-30,"['ADI', 'AMD', 'CFG', 'DVN', 'INTU', 'PLUG', 'REGN', 'RJF']","['CRWD', 'DXCM', 'ENPH', 'GOOGL', 'INTC', 'SLB', 'USB', 'WFC']",8,15,0.5333333333333333
+2025-05-31,"['CRWD', 'DG', 'DXCM', 'GL', 'GOOGL', 'INTC', 'SLB', 'USB', 'WFC']","['AON', 'CRM', 'GRMN', 'GS', 'MRVL', 'MSCI', 'REGN', 'TER', 'UNP']",9,15,0.6
+2025-06-30,"['AON', 'GRMN', 'INSP', 'LOW', 'NVCR', 'REGN', 'TER', 'TSLA']","['ABBV', 'AZO', 'CRWD', 'EBAY', 'GILD', 'ICE', 'JNJ', 'ORLY']",8,15,0.5333333333333333
+2025-07-31,"['AZO', 'CRM', 'GILD', 'MRVL', 'MSCI', 'ORLY', 'UNP']","['CME', 'INTC', 'LRCX', 'NFLX', 'TMO', 'VRSK', 'WMT']",7,15,0.4666666666666667
+2025-08-31,"['ABBV', 'EBAY', 'GS', 'JNJ', 'LRCX', 'WMT']","['BIIB', 'HUM', 'MCHP', 'PRU', 'SBUX', 'TSLA']",6,15,0.4
+2025-09-30,"['HUM', 'INTC', 'PRU', 'VRSK']","['AMD', 'FSLR', 'GS', 'HOLX']",4,15,0.26666666666666666
+2025-10-31,"['BIIB', 'CME', 'CRWD', 'ENPH', 'ICE', 'SBUX']","['DKNG', 'MS', 'MTD', 'NDAQ', 'ORCL', 'PLUG']",6,15,0.4
+2025-11-30,"['HOLX', 'MTD', 'TMO', 'TSLA']","['CVS', 'RCL', 'REGN', 'UNH']",4,15,0.26666666666666666
+2025-12-31,"['NDAQ', 'NFLX']","['AMTD', 'CCL']",2,15,0.13333333333333333
+2026-01-31,"['DKNG', 'MS', 'REGN']","['GILD', 'NKE', 'SYF']",3,15,0.2
+2026-02-28,"['AMD', 'AMTD', 'GILD', 'NKE']","['ACAD', 'C', 'STX', 'TSLA']",4,15,0.26666666666666666
+2026-03-31,"['CVS', 'ORCL', 'RCL', 'SYF']","['FOLD', 'MU', 'TFC', 'WBD']",4,15,0.26666666666666666
+2026-04-30,"['C', 'FOLD', 'WBD']","['DIS', 'IBKR', 'NTRA']",3,15,0.2

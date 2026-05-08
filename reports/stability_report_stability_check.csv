@@ -1,0 +1,2 @@
+passed,flags,mean_ic,std_ic,win_rate,threshold_std_threshold,threshold_mean_threshold,threshold_win_rate_threshold
+False,"LOW_MEAN_IC,LOW_WIN_RATE",0.002261440996107159,0.12601192508297127,0.44680851063829785,0.15,0.01,0.6

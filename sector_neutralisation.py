@@ -57,6 +57,7 @@ REBAL_THRESHOLD     = 0.12   # challenger must beat holder by 12 rank pct points
 EWM_ALPHA           = 0.50   # weight on current month rank (0.5 on previous)
 HOLD_BONUS_PER_MONTH = 0.02  # +2 rank pct points per month held (capped at 5)
 HOLD_BONUS_CAP       = 5     # max months of bonus accrual
+MIN_HOLD_PERIOD      = 0     # minimum months before a stock can be sold (0 = no constraint)
 
 LGB_PARAMS = {
     "objective"        : "regression",
@@ -104,31 +105,50 @@ def add_sector_features(factors_df, sector_map=None):
 
 
 def walk_forward_sector_neutral(factors_df, sector_z_features,
-                                 min_train_months=24):
+                                 min_train_months=24,
+                                 ewm_alpha=EWM_ALPHA,
+                                 hold_bonus_per_month=HOLD_BONUS_PER_MONTH,
+                                 hold_bonus_cap=HOLD_BONUS_CAP,
+                                 min_hold_period=MIN_HOLD_PERIOD):
     """
-    Walk-forward with EWM signal smoothing + holding-period bonus.
+    Walk-forward with EWM signal smoothing + configurable holding-period bonus
+    + minimum holding period constraint.
 
     For each month t:
       1. Train LightGBM on all months before t (raw return target)
       2. Predict raw returns for all 250 stocks at t
       3. Compute within-sector percentile rank (0-1 per sector)
-      4. Smooth: smoothed = EWM_ALPHA×current + (1-EWM_ALPHA)×previous
-      5. Add holding bonus: +HOLD_BONUS_PER_MONTH per month held (capped)
-      6. Save adjusted rank as "predicted" for portfolio construction
+      4. Smooth: smoothed = ewm_alpha×current + (1-ewm_alpha)×previous
+      5. Add holding bonus: +hold_bonus_per_month per month held (capped)
+      6. Apply minimum holding period: stocks held < min_hold_period cannot be sold
+      7. Save adjusted rank as "predicted" for portfolio construction
+
+    Args:
+        factors_df: DataFrame with features and target
+        sector_z_features: List of feature column names
+        min_train_months: Minimum months of training data required
+        ewm_alpha: EWM smoothing parameter (0-1, higher = more weight on current)
+        hold_bonus_per_month: Rank bonus per month held (e.g., 0.02 = +2 pct points)
+        hold_bonus_cap: Maximum months for bonus accrual
+        min_hold_period: Minimum months before a stock can be sold (0 = no constraint)
 
     Missing feature values are filled with per-month cross-sectional
     median to avoid systematic bias from zero-fill.
+    
+    Requirements: 4.4, 4.6
     """
     all_dates   = sorted(factors_df["date"].unique())
     results     = []
     prev_ranks  = {}   # {ticker: previous smoothed rank}
     hold_tenure = {}   # {ticker: consecutive months held in portfolio}
+    hold_start_date = {}  # {ticker: date when position was opened}
     prev_held_all = set()  # all tickers in portfolio last month
 
     print(f"Sector-neutral walk-forward: {len(all_dates)} months | "
-          f"top-{TOP_PER_SECTOR}/sector | EWM α={EWM_ALPHA} | "
+          f"top-{TOP_PER_SECTOR}/sector | EWM α={ewm_alpha} | "
           f"rebal threshold={REBAL_THRESHOLD} | "
-          f"hold bonus={HOLD_BONUS_PER_MONTH}/mo (cap {HOLD_BONUS_CAP})")
+          f"hold bonus={hold_bonus_per_month}/mo (cap {hold_bonus_cap}) | "
+          f"min hold period={min_hold_period} months")
 
     for i, test_date in enumerate(all_dates):
         if i < min_train_months:
@@ -173,25 +193,54 @@ def walk_forward_sector_neutral(factors_df, sector_z_features,
         for _, row in temp.iterrows():
             curr = row["raw_rank"]
             prev = prev_ranks.get(row["ticker"], curr)  # first time: use raw
-            s    = EWM_ALPHA * curr + (1 - EWM_ALPHA) * prev
+            s    = ewm_alpha * curr + (1 - ewm_alpha) * prev
+            
             # Holding-period bonus — incumbent advantage
             ticker = row["ticker"]
             if ticker in prev_held_all:
-                tenure = min(hold_tenure.get(ticker, 0) + 1, HOLD_BONUS_CAP)
-                s += tenure * HOLD_BONUS_PER_MONTH
+                tenure = min(hold_tenure.get(ticker, 0) + 1, hold_bonus_cap)
+                s += tenure * hold_bonus_per_month
                 hold_tenure[ticker] = tenure
             else:
                 hold_tenure[ticker] = 0
+            
             smoothed.append(s)
             prev_ranks[row["ticker"]] = s
 
         temp["smoothed_rank"] = smoothed
+        
+        # Apply minimum holding period constraint
+        if min_hold_period > 0:
+            for ticker in prev_held_all:
+                if ticker in hold_start_date:
+                    start_idx = all_dates.index(hold_start_date[ticker])
+                    current_idx = all_dates.index(test_date)
+                    months_held = current_idx - start_idx
+                    
+                    if months_held < min_hold_period:
+                        # Force this stock to stay in portfolio by boosting rank
+                        ticker_rows = temp[temp["ticker"] == ticker]
+                        if not ticker_rows.empty:
+                            # Boost rank significantly to ensure it stays selected
+                            current_rank = temp.loc[temp["ticker"] == ticker, "smoothed_rank"].values[0]
+                            temp.loc[temp["ticker"] == ticker, "smoothed_rank"] = current_rank + 10.0
 
         # Track which stocks are selected this month (for next month's bonus)
         month_selected = set()
         for sector, sg in temp.groupby("sector"):
             top = sg.nlargest(TOP_PER_SECTOR, "smoothed_rank")["ticker"].values
             month_selected.update(top)
+        
+        # Update hold start dates for new positions
+        for ticker in month_selected:
+            if ticker not in prev_held_all:
+                hold_start_date[ticker] = test_date
+        
+        # Remove stocks no longer held from tracking
+        for ticker in list(hold_start_date.keys()):
+            if ticker not in month_selected:
+                del hold_start_date[ticker]
+        
         prev_held_all = month_selected
 
         for _, row in temp.iterrows():

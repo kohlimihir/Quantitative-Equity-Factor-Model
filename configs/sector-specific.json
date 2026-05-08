@@ -1,0 +1,183 @@
+{
+  "version": "1.0",
+  "description": "Base configuration for equity factor model",
+  "data": {
+    "min_train_months": 24,
+    "fundamental_lag_days": 45,
+    "missing_value_strategy": "cross_sectional_median",
+    "feature_groups": [
+      "Momentum",
+      "Value",
+      "Quality",
+      "Growth",
+      "Volatility",
+      "Size",
+      "Liquidity",
+      "Sentiment"
+    ]
+  },
+  "features": {
+    "use_all_features": true,
+    "selected_features": null,
+    "interaction_features": false,
+    "nonlinear_transforms": false,
+    "sector_relative_features": false,
+    "momentum_lookback_windows": [
+      20,
+      60,
+      120
+    ],
+    "volatility_windows": [
+      20,
+      60
+    ]
+  },
+  "models": {
+    "ridge": {
+      "enabled": true,
+      "alpha": 1.0,
+      "fit_intercept": true,
+      "max_iter": null,
+      "tol": 0.001,
+      "solver": "auto"
+    },
+    "lightgbm": {
+      "enabled": true,
+      "objective": "regression",
+      "metric": "rmse",
+      "n_estimators": 300,
+      "learning_rate": 0.03,
+      "num_leaves": 31,
+      "max_depth": -1,
+      "min_child_samples": 20,
+      "subsample": 0.7,
+      "colsample_bytree": 0.7,
+      "reg_alpha": 0.2,
+      "reg_lambda": 0.2,
+      "random_state": 42,
+      "n_jobs": -1,
+      "verbose": -1
+    },
+    "ensemble": {
+      "enabled": false,
+      "method": "grid_search",
+      "validation_months": 6
+    },
+    "sector_specific": {
+      "enabled": true,
+      "tune_per_sector": true,
+      "model_type": "lightgbm"
+    }
+  },
+  "hyperparameter_tuning": {
+    "enabled": true,
+    "n_cv_splits": 3,
+    "scoring": "ic",
+    "ridge_param_grid": {
+      "alpha": [
+        0.01,
+        0.1,
+        1.0,
+        10.0,
+        100.0
+      ]
+    },
+    "lightgbm_param_grid": {
+      "learning_rate": [
+        0.01,
+        0.05,
+        0.1
+      ],
+      "num_leaves": [
+        15,
+        31,
+        63
+      ],
+      "max_depth": [
+        3,
+        5,
+        7
+      ],
+      "min_data_in_leaf": [
+        10,
+        20,
+        50
+      ],
+      "lambda_l1": [
+        0.0,
+        0.1,
+        1.0
+      ],
+      "lambda_l2": [
+        0.0,
+        0.1,
+        1.0
+      ]
+    }
+  },
+  "validation": {
+    "expanding_window": true,
+    "min_train_size": 0.6,
+    "test_size": 1,
+    "gap": 0
+  },
+  "turnover": {
+    "ewm_smoothing": {
+      "enabled": true,
+      "alpha": 0.5,
+      "min_periods": 1
+    },
+    "rebalancing_threshold": {
+      "enabled": false,
+      "threshold": 0.1,
+      "threshold_type": "rank_change"
+    },
+    "holding_period_bonus": {
+      "enabled": false,
+      "bonus_rate": 0.05,
+      "max_bonus": 0.2,
+      "decay_rate": 0.0
+    },
+    "minimum_holding_period": {
+      "enabled": false,
+      "min_months": 2
+    },
+    "target_turnover": 0.25,
+    "max_turnover_threshold": 0.3
+  },
+  "portfolio": {
+    "construction_method": "top_n_per_sector",
+    "top_n_per_sector": 3,
+    "long_short_threshold": 0.0,
+    "rank_weighting": false,
+    "sector_neutral": true,
+    "equal_weight_sectors": true
+  },
+  "diagnostics": {
+    "leakage_detection": true,
+    "feature_analysis": true,
+    "stability_monitoring": true,
+    "performance_plots": true,
+    "save_predictions": true,
+    "save_feature_importance": true,
+    "save_diagnostics": true,
+    "output_dir": "outputs",
+    "report_dir": "reports"
+  },
+  "performance": {
+    "cache_features": true,
+    "cache_predictions": true,
+    "parallel_processing": true,
+    "n_jobs": -1,
+    "chunk_size": null,
+    "memory_efficient": false
+  },
+  "reproducibility": {
+    "random_seed": 42,
+    "deterministic": true,
+    "log_config": true,
+    "version_data": true
+  },
+  "profile": "sector-specific",
+  "profile_description": "Sector-specific models with per-sector tuning"
+}
