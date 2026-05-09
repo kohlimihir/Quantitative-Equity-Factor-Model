@@ -1,6 +1,44 @@
 """
-Equity Factor Model Pipeline
-Usage: python run_all.py [--config PROFILE] [--skip-leakage] [--skip-feature-analysis]
+run_all.py  —  Master Pipeline (250-Stock, 19-Feature Model) — INTEGRATED VERSION
+==================================================================================
+Single command to run the full integrated pipeline with comprehensive diagnostics:
+
+  python run_all.py [--config PROFILE] [--skip-leakage] [--skip-feature-analysis]
+
+Stages:
+  0  Configuration loading and validation     (config_manager.py)
+  1  Data leakage detection                   (leakage_detector.py)
+  2  Data download + 19-feature engineering   (data_loader.py)
+  3  Feature quality analysis                 (feature_analyzer.py)
+  4  Ridge baseline walk-forward              (model.py)
+  5  LightGBM + SHAP                          (shap_explainability.py)
+  6  Hyperparameter tuning (optional)         (hyperparameter_tuner.py)
+  7  Ensemble models (optional)               (ensemble_model.py)
+  8  Sector-specific models (optional)        (sector_model.py)
+  9  Early stopping & regularization          (early_stopping_regularization.py)
+  10 Sector-diversified portfolio + EWM       (sector_neutralisation.py)
+  11 OOT validation                           (oot_validation.py)
+  12 Transaction cost modelling               (transaction_costs.py)
+  13 Comprehensive diagnostic report          (All systems)
+
+Universe: 250 stocks (50 per sector × 5 sectors)
+Features: 19 across 8 groups (Momentum, Risk, Technical, Value,
+          Quality, Growth, Size, Liquidity)
+Portfolio: top-3 per sector = 15 stocks/month (configurable)
+Turnover reduction: EWM α=0.5 + rebalancing threshold 12%
+                    + holding-period bonus (+0.02/mo, cap 5)
+Data caching: daily_prices.parquet + fundamentals.parquet
+              (re-runs skip download entirely)
+
+New Features:
+  - Configuration management with profiles
+  - Comprehensive leakage detection
+  - Feature quality analysis and recommendations
+  - Hyperparameter tuning with nested CV
+  - Ensemble methods (Ridge + LightGBM)
+  - Sector-specific modeling
+  - Early stopping and regularization
+  - Integrated diagnostic reporting
 """
 
 import os
@@ -11,17 +49,22 @@ import numpy as np
 import argparse
 import warnings
 
-os.makedirs("data", exist_ok=True)
+os.makedirs("data",    exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 os.makedirs("reports", exist_ok=True)
 
 RF = 0.045 / 12
 
-parser = argparse.ArgumentParser(description="Run equity factor model pipeline")
-parser.add_argument("--config", type=str, default="baseline", help="Config profile (default: baseline)")
-parser.add_argument("--skip-leakage", action="store_true", help="Skip leakage detection")
-parser.add_argument("--skip-feature-analysis", action="store_true", help="Skip feature analysis")
-parser.add_argument("--skip-hyperparameter-tuning", action="store_true", help="Skip hyperparameter tuning")
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Run integrated equity factor model pipeline")
+parser.add_argument("--config", type=str, default="baseline",
+                   help="Configuration profile to use (default: baseline)")
+parser.add_argument("--skip-leakage", action="store_true",
+                   help="Skip leakage detection (not recommended)")
+parser.add_argument("--skip-feature-analysis", action="store_true",
+                   help="Skip feature quality analysis")
+parser.add_argument("--skip-hyperparameter-tuning", action="store_true",
+                   help="Skip hyperparameter tuning")
 args = parser.parse_args()
 
 
@@ -40,24 +83,29 @@ def done(label, t):
 
 
 def error_handler(stage_name, error, continue_on_error=False):
-    print(f"\n❌ ERROR in {stage_name}: {str(error)}")
+    """Handle errors in pipeline stages."""
+    print(f"\n❌ ERROR in {stage_name}:")
+    print(f"   {str(error)}")
     if not continue_on_error:
-        print("   Pipeline stopped. Fix the error and re-run.")
+        print(f"\n   Pipeline stopped. Fix the error and re-run.")
         sys.exit(1)
     else:
-        print("   Continuing...")
+        print(f"\n   Continuing with remaining stages...")
 
 
 t0 = time.time()
-section("EQUITY FACTOR MODEL — 250 STOCKS, 19 FEATURES")
-print(f"  Config: {args.config}")
-print("  Pipeline: Config → Leakage → Data → Features → Models → Portfolio → OOT → Costs")
-print("  8 groups: Momentum, Risk, Technical, Value, Quality, Growth, Size, Liquidity")
+section("INTEGRATED EQUITY FACTOR MODEL — 250 STOCKS, 19 FEATURES")
+print(f"  Configuration: {args.config}")
+print("  Pipeline: Config → Leakage Detection → Data → Feature Analysis →")
+print("           Models → Hyperparameter Tuning → Ensemble → Sector Models →")
+print("           Early Stopping → Portfolio → OOT → Costs → Diagnostics")
+print("  8 feature groups: Momentum, Risk, Technical, Value,")
+print("  Quality, Growth, Size, Liquidity")
 print("  Data cached locally — subsequent runs skip download")
 
 
-# Config Loading
-step(0, "Loading configuration")
+# ── STEP 0: Configuration Loading ─────────────────────────────────────────────
+step(0, "Loading configuration and initializing pipeline")
 t = time.time()
 
 try:
@@ -67,19 +115,23 @@ try:
     config = config_mgr.load_config(args.config)
     config_mgr.print_summary()
     
+    # Extract key configuration parameters
     MIN_TRAIN_MONTHS = config_mgr.get("data.min_train_months", 24)
     FUNDAMENTAL_LAG_DAYS = config_mgr.get("data.fundamental_lag_days", 45)
     
+    # Model configuration
     ENABLE_RIDGE = config_mgr.get("models.ridge.enabled", True)
     ENABLE_LIGHTGBM = config_mgr.get("models.lightgbm.enabled", True)
     ENABLE_ENSEMBLE = config_mgr.get("models.ensemble.enabled", False)
     ENABLE_SECTOR_SPECIFIC = config_mgr.get("models.sector_specific.enabled", False)
     
+    # Hyperparameter tuning
     ENABLE_HYPERPARAMETER_TUNING = (
         config_mgr.get("hyperparameter_tuning.enabled", False) and 
         not args.skip_hyperparameter_tuning
     )
     
+    # Diagnostics configuration
     ENABLE_LEAKAGE_DETECTION = (
         config_mgr.get("diagnostics.leakage_detection", True) and 
         not args.skip_leakage
@@ -89,14 +141,15 @@ try:
         not args.skip_feature_analysis
     )
     
+    # Turnover configuration
     EWM_ALPHA = config_mgr.get("turnover.ewm_smoothing.alpha", 0.5)
     REBAL_THRESHOLD = config_mgr.get("turnover.rebalancing_threshold.threshold", 0.12)
     TOP_PER_SECTOR = config_mgr.get("portfolio.top_n_per_sector", 3)
     
-    done("config", time.time() - t)
+    done("configuration loading", time.time() - t)
     
 except Exception as e:
-    error_handler("Config", e, continue_on_error=False)
+    error_handler("Configuration Loading", e, continue_on_error=False)
 
 
 # ── STEP 1: Data Leakage Detection ────────────────────────────────────────────
@@ -904,6 +957,30 @@ os_   = oot_metrics.get("OOT_Sharpe", 0)
 turn  = turnover_df["turnover"].mean() * 12
 n_st  = factors_df["ticker"].nunique()
 
+print(f"""
+  Resume bullet:
+    "Built integrated 19-factor equity model on {n_st} S&P 500 stocks across
+     5 GICS sectors (50 stocks/sector) with comprehensive diagnostic framework;
+     features span momentum, idiosyncratic volatility, 52W-high anchoring,
+     market beta, price/book, EV/EBITDA, ROE, cash flow yield, revenue growth,
+     log market cap, and liquidity — chosen for low inter-group correlation
+     and academic evidence of persistent alpha; implemented comprehensive
+     data leakage detection system validating temporal boundaries, fundamental
+     lag enforcement (45 days), and feature computation integrity;
+     feature quality analysis identified top predictive features and provided
+     actionable recommendations for feature engineering; {'hyperparameter tuning with nested CV optimized model parameters; ' if ENABLE_HYPERPARAMETER_TUNING else ''}{'ensemble methods combining Ridge and LightGBM improved IC by ' + f'{((ensemble_metrics["ensemble"]["mean_ic"] - metrics_lgbm.get("Mean_IC", 0)) / abs(metrics_lgbm.get("Mean_IC", 0.001)) * 100):.1f}%; ' if ENABLE_ENSEMBLE else ''}LightGBM on raw features (no Z-scoring to preserve sector alpha)
+     achieved IC {ic_v:.3f} and IC-IR {ir_v:.3f};
+     sector-diversified portfolio (top-{TOP_PER_SECTOR}/sector = {TOP_PER_SECTOR*5} stocks) +
+     EWM signal smoothing (α={EWM_ALPHA}) + holding-period bonus
+     + {REBAL_THRESHOLD:.0%} rebalancing threshold reduced annual turnover to {turn:.0%};
+     OOT validation on {om} months of unseen data confirmed
+     Sharpe {os_:.2f}; net-of-cost Sharpe {net_sharpe:.2f} at 10bps
+     round-trip confirms deployable alpha; comprehensive diagnostic
+     framework provides continuous monitoring of model health, feature
+     quality, and leakage prevention."
+""")
+
 print("\n" + "="*78)
-print("  Pipeline complete. Check reports/comprehensive_diagnostic_report.txt for details.")
+print("  For detailed diagnostics, see:")
+print("    reports/comprehensive_diagnostic_report.txt")
 print("="*78)

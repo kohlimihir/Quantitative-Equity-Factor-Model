@@ -1,8 +1,8 @@
 {
   "pipeline_info": {
-    "configuration": "optimized_low_turnover",
-    "total_runtime_minutes": 5.712622316678365,
-    "timestamp": "2026-05-09 14:56:43",
+    "configuration": "baseline",
+    "total_runtime_minutes": 5.47805720170339,
+    "timestamp": "2026-05-09 16:48:28",
     "universe_size": 239,
     "time_periods": 71,
     "features_count": 19
@@ -51,9 +51,9 @@
     "lgbm_best_score": null
   },
   "ensemble": {
-    "enabled": true,
-    "mean_ic": 0.019606039010967795,
-    "ic_ir": 0.1359102845265682
+    "enabled": false,
+    "mean_ic": null,
+    "ic_ir": null
   },
   "sector_specific": {
     "enabled": false,
@@ -62,7 +62,7 @@
   "turnover": {
     "mean_monthly": 0.24130434782608698,
     "annual": 2.8956521739130436,
-    "target": 0.15
+    "target": 0.25
   },
   "oot_validation": {
     "mean_ic": 0.036765688989327285,

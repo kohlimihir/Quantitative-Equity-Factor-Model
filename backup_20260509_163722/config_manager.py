@@ -1,8 +1,18 @@
 """
-Configuration Management for Equity Factor Model
+config_manager.py — Configuration Management Framework
+=======================================================
+Manages configuration loading, validation, and profile management for the
+equity factor model pipeline. Supports configuration inheritance, validation,
+and multiple configuration profiles.
 
-Handles loading, validation, and management of configuration files
-with support for profiles and inheritance.
+CAPABILITIES:
+  1. Load configuration from JSON files
+  2. Validate configuration structure and values
+  3. Support configuration profiles (baseline, low-turnover, high-IC, etc.)
+  4. Configuration inheritance (profiles extend base configurations)
+  5. Configuration logging and versioning
+
+**Validates: Requirements 10.1, 10.6, 10.7, 10.8**
 """
 
 import json
@@ -13,9 +23,24 @@ import warnings
 
 
 class ConfigManager:
-    """Configuration management system for equity factor model."""
+    """
+    Configuration management system for equity factor model.
+    
+    Handles loading, validation, and management of configuration files
+    with support for profiles and inheritance.
+    """
     
     def __init__(self, config_dir: str = "configs", verbose: bool = True):
+        """
+        Initialize configuration manager.
+        
+        Parameters
+        ----------
+        config_dir : str
+            Directory containing configuration files (default: "configs")
+        verbose : bool
+            Print progress messages (default: True)
+        """
         self.config_dir = config_dir
         self.verbose = verbose
         self.config = None
@@ -23,7 +48,21 @@ class ConfigManager:
         self.load_timestamp = None
         
     def load_config(self, profile: str = "baseline") -> Dict[str, Any]:
-        """Load configuration from profile."""
+        """
+        Load configuration from profile.
+        
+        Parameters
+        ----------
+        profile : str
+            Configuration profile name (default: "baseline")
+            Available profiles: baseline, low-turnover, high-IC, sector-specific,
+            fast-iteration, custom_baseline, demo_custom
+        
+        Returns
+        -------
+        dict
+            Configuration dictionary
+        """
         config_path = os.path.join(self.config_dir, f"{profile}.json")
         
         if not os.path.exists(config_path):
@@ -51,14 +90,27 @@ class ConfigManager:
         return config
     
     def _validate_config(self, config: Dict[str, Any]) -> None:
-        """Validate configuration structure and values."""
+        """
+        Validate configuration structure and values.
+        
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary to validate
+        
+        Raises
+        ------
+        ValueError
+            If configuration is invalid
+        """
         required_sections = ["data", "features", "models", "validation", 
                            "turnover", "portfolio", "diagnostics"]
         
         for section in required_sections:
             if section not in config:
-                raise ValueError(f"Missing required section: {section}")
+                raise ValueError(f"Missing required configuration section: {section}")
         
+        # Validate data section
         data_config = config["data"]
         if data_config.get("min_train_months", 0) < 12:
             warnings.warn("min_train_months < 12 may lead to unstable models")
@@ -66,23 +118,47 @@ class ConfigManager:
         if data_config.get("fundamental_lag_days", 0) < 45:
             warnings.warn("fundamental_lag_days < 45 may cause data leakage")
         
+        # Validate models section
         models_config = config["models"]
         if not any(models_config.get(m, {}).get("enabled", False) 
                   for m in ["ridge", "lightgbm", "ensemble", "sector_specific"]):
             raise ValueError("At least one model must be enabled")
         
+        # Validate turnover section
         turnover_config = config["turnover"]
         if turnover_config.get("target_turnover", 1.0) > 0.5:
-            warnings.warn("target_turnover > 50% may generate excessive costs")
+            warnings.warn("target_turnover > 50% may generate excessive transaction costs")
         
+        # Validate portfolio section
         portfolio_config = config["portfolio"]
         if portfolio_config.get("top_n_per_sector", 0) < 1:
             raise ValueError("top_n_per_sector must be >= 1")
     
     def get(self, key_path: str, default: Any = None) -> Any:
-        """Get config value using dot notation (e.g., 'models.ridge.alpha')."""
+        """
+        Get configuration value using dot notation.
+        
+        Parameters
+        ----------
+        key_path : str
+            Dot-separated path to configuration value (e.g., "models.ridge.alpha")
+        default : Any
+            Default value if key not found (default: None)
+        
+        Returns
+        -------
+        Any
+            Configuration value
+        
+        Examples
+        --------
+        >>> config_mgr.get("models.ridge.alpha")
+        1.0
+        >>> config_mgr.get("models.ridge.enabled")
+        True
+        """
         if self.config is None:
-            raise ValueError("No config loaded. Call load_config() first.")
+            raise ValueError("No configuration loaded. Call load_config() first.")
         
         keys = key_path.split(".")
         value = self.config
@@ -96,9 +172,23 @@ class ConfigManager:
         return value
     
     def set(self, key_path: str, value: Any) -> None:
-        """Set config value using dot notation."""
+        """
+        Set configuration value using dot notation.
+        
+        Parameters
+        ----------
+        key_path : str
+            Dot-separated path to configuration value
+        value : Any
+            Value to set
+        
+        Examples
+        --------
+        >>> config_mgr.set("models.ridge.alpha", 10.0)
+        >>> config_mgr.set("turnover.ewm_smoothing.alpha", 0.7)
+        """
         if self.config is None:
-            raise ValueError("No config loaded. Call load_config() first.")
+            raise ValueError("No configuration loaded. Call load_config() first.")
         
         keys = key_path.split(".")
         current = self.config

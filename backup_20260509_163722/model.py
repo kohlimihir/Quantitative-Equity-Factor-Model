@@ -1,11 +1,13 @@
 """
-Ridge Regression Baseline Model
+model.py  —  Stage 1: Ridge Regression Baseline (19 features)
+=============================================================
+Intentionally simple. Establishes an honest baseline before adding
+complexity. With 250 stocks × 24+ months = ~6,000 training rows,
+Ridge coefficients are statistically reliable.
 
-Simple linear model establishing baseline performance before adding complexity.
-With 250 stocks × 24+ months, Ridge coefficients are statistically reliable.
-
-TARGET: Next_Month_Return (actual return, not rank)
-LEAKAGE PREVENTION: Scaler fit on train only, expanding window, cross-sectional imputation
+TARGET: Next_Month_Return (price return, not rank).
+LEAKAGE: scaler fit on train only; all_dates[:i] expanding window.
+         Missing data: cross-sectional median imputation (no future leak).
 """
 
 import pandas as pd
@@ -20,11 +22,15 @@ from data_loader import FEATURES, TARGET, FEATURE_GROUPS
 
 
 def walk_forward_validation(factors_df, min_train_months=24):
-    """Expanding-window walk-forward validation. Train on [0..i-1], predict i."""
+    """
+    Expanding-window walk-forward. Train on [0..i-1], predict i.
+    250 stocks × 24 months = ~6,000 rows at first prediction.
+    """
     all_dates = sorted(factors_df["date"].unique())
     results, coef_list = [], []
     print(f"Ridge walk-forward: {len(all_dates)} months, "
-          f"~{factors_df['ticker'].nunique()} stocks/month, {len(FEATURES)} features")
+          f"~{factors_df['ticker'].nunique()} stocks/month, "
+          f"{len(FEATURES)} features")
 
     for i, test_date in enumerate(all_dates):
         if i < min_train_months:
@@ -38,19 +44,19 @@ def walk_forward_validation(factors_df, min_train_months=24):
         for col in FEATURES:
             med = X_train_df[col].median()
             X_train_df[col] = X_train_df[col].fillna(med)
-        X_train_df = X_train_df.fillna(0)
-        
+        X_train_df = X_train_df.fillna(0)  # fallback if median is NaN
         X_test_df = test_df[FEATURES].copy()
         for col in FEATURES:
             med = X_test_df[col].median()
             X_test_df[col] = X_test_df[col].fillna(med)
-        X_test_df = X_test_df.fillna(0)
+        X_test_df = X_test_df.fillna(0)    # fallback if median is NaN
 
         X_train = X_train_df.values
         y_train = train_df[TARGET].values
         X_test  = X_test_df.values
         y_test  = test_df[TARGET].values
 
+        # Scaler fit ONLY on train — no test statistics leak in
         scaler  = StandardScaler()
         X_train = scaler.fit_transform(X_train)
         X_test  = scaler.transform(X_test)
@@ -77,7 +83,18 @@ def walk_forward_validation(factors_df, min_train_months=24):
 
 
 def compute_rolling_ic(monthly_ic, windows=[3, 6, 12]):
-    """Compute rolling IC statistics with configurable windows."""
+    """
+    Compute rolling IC statistics with configurable windows.
+    
+    Args:
+        monthly_ic: Series of monthly IC values indexed by date
+        windows: List of window sizes in months (default: [3, 6, 12])
+    
+    Returns:
+        DataFrame with rolling IC statistics for each window
+        
+    Validates: Requirements 3.5
+    """
     rolling_stats = {}
     
     for window in windows:
@@ -99,7 +116,21 @@ def compute_rolling_ic(monthly_ic, windows=[3, 6, 12]):
 
 
 def compute_feature_importance(coef_df, feature_names=None):
-    """Compute feature importance from model coefficients."""
+    """
+    Compute feature importance from model coefficients.
+    
+    Analyzes coefficient stability and magnitude across time to identify
+    the most important and consistent features.
+    
+    Args:
+        coef_df: DataFrame with model coefficients over time
+        feature_names: List of feature names (default: all columns in coef_df)
+    
+    Returns:
+        DataFrame with feature importance metrics
+        
+    Validates: Requirements 3.8
+    """
     if feature_names is None:
         feature_names = coef_df.columns.tolist()
     
@@ -110,15 +141,20 @@ def compute_feature_importance(coef_df, feature_names=None):
             continue
         
         coefs = coef_df[feature].values
+        
+        # Remove NaN values
         valid_coefs = coefs[~np.isnan(coefs)]
         
         if len(valid_coefs) == 0:
             continue
         
+        # Compute importance metrics
         mean_coef = np.mean(valid_coefs)
         abs_mean_coef = np.mean(np.abs(valid_coefs))
         std_coef = np.std(valid_coefs)
         stability = 1.0 / (1.0 + std_coef) if std_coef > 0 else 1.0
+        
+        # Importance score: combines magnitude and stability
         importance_score = abs_mean_coef * stability
         
         importance_records.append({

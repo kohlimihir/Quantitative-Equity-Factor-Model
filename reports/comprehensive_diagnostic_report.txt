@@ -2,9 +2,9 @@
   COMPREHENSIVE DIAGNOSTIC REPORT
 ==============================================================================
 
-Generated: 2026-05-09 14:56:43
-Configuration: optimized_low_turnover
-Total Runtime: 5.7 minutes
+Generated: 2026-05-09 16:48:28
+Configuration: baseline
+Total Runtime: 5.5 minutes
 
 PIPELINE CONFIGURATION:
 ------------------------------------------------------------------------------
@@ -32,17 +32,15 @@ MODEL PERFORMANCE:
 ADVANCED FEATURES:
 ------------------------------------------------------------------------------
   Hyperparameter Tuning: ⚠ DISABLED
-  Ensemble Models: ✓ ENABLED
-    Ensemble Mean IC: 0.01961
-    Ensemble IC-IR: 0.13591
+  Ensemble Models: ⚠ DISABLED
   Sector-Specific Models: ⚠ DISABLED
 
 TURNOVER ANALYSIS:
 ------------------------------------------------------------------------------
   Mean Monthly Turnover: 24.1%
   Annual Turnover: 290%
-  Target Turnover: 15.0%
-  Status: ⚠ ABOVE TARGET
+  Target Turnover: 25.0%
+  Status: ✓ BELOW TARGET
 
 OUT-OF-TIME VALIDATION:
 ------------------------------------------------------------------------------

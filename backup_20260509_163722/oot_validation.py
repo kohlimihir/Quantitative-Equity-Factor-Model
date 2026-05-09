@@ -1,9 +1,20 @@
 """
-Out-of-Time Validation
-
-Held-out period: Jan 2025 onwards. Never seen during development.
-Uses same EWM smoothing + rebalancing threshold as sector model.
+oot_validation.py  —  Stage 4: Out-of-Time Validation
+======================================================
+Held-out period: Jan 2025 onwards. Never seen during any development step.
+Uses same EWM smoothing + rebalancing threshold + holding-period bonus
+as sector_neutralisation.py.
 Portfolio: top-3 per sector = 15 stocks/month.
+
+LEAKAGE AUDIT:
+  dev_df: strict < OOT_START — boundary month not in development
+  oot_df: strict >= OOT_START — no overlap with dev
+  model.fit(X_dev, y_dev): OOT features/labels completely hidden
+  Features: raw values — no cross-sectional transformation
+  EWM: uses only prev_ranks carried from dev period, never future OOT months
+  Holding bonus: tenure tracked from past months only, never future
+  Threshold: uses current + previous scores only
+  Missing data: cross-sectional median imputation (no future leak)
 """
 
 import pandas as pd

@@ -2,8 +2,8 @@
   COMPREHENSIVE DATA LEAKAGE AUDIT REPORT
 ======================================================================
 
-Generated: 2026-05-09 14:54:48
-Configuration: optimized_low_turnover
+Generated: 2026-05-09 16:47:01
+Configuration: baseline
 
 TEMPORAL BOUNDARY VALIDATION:
   Status: ✓ PASSED

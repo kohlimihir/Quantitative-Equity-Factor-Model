@@ -1,10 +1,27 @@
 """
-Ensemble Model combining Ridge and LightGBM
+ensemble_model.py — Ensemble Framework for Ridge and LightGBM
+==============================================================
+Combines Ridge and LightGBM predictions using learned weights optimized
+on validation data. Implements walk-forward ensemble training that prevents
+overfitting by learning weights only from training periods.
 
-Combines Ridge (linear) and LightGBM (non-linear) predictions using learned weights
-optimized on validation data. Walk-forward ensemble training prevents overfitting.
+ENSEMBLE ARCHITECTURE:
+  - Base models: Ridge (linear) + LightGBM (non-linear)
+  - Weight optimization: Learned on validation data within training window
+  - Prediction: weighted_pred = w1 * ridge_pred + w2 * lgbm_pred
+  - Constraint: w1 + w2 = 1, w1, w2 >= 0
 
-Methods: Grid search, gradient-based optimization, or equal weighting
+TEMPORAL INTEGRITY:
+  - Weights learned using nested validation within training window
+  - No future data used in weight optimization
+  - Walk-forward validation maintains temporal ordering
+
+OPTIMIZATION METHODS:
+  1. Grid search: Test fixed weight combinations [0.0, 0.1, ..., 1.0]
+  2. Gradient-based: Optimize weights to maximize validation IC
+  3. Equal weighting: Simple baseline (w1=0.5, w2=0.5)
+
+**Validates: Requirements 3.3**
 """
 
 import pandas as pd
@@ -16,9 +33,24 @@ warnings.filterwarnings("ignore")
 
 
 class EnsembleModel:
-    """Ensemble model combining Ridge and LightGBM predictions."""
+    """
+    Ensemble model combining Ridge and LightGBM predictions.
+    
+    Learns optimal weights on validation data to maximize IC while
+    maintaining temporal integrity in walk-forward validation.
+    """
     
     def __init__(self, method="grid_search", verbose=True):
+        """
+        Initialize ensemble model.
+        
+        Parameters
+        ----------
+        method : str
+            Weight optimization method: "grid_search", "optimize", or "equal"
+        verbose : bool
+            Print progress messages
+        """
         self.method = method.lower()
         self.verbose = verbose
         self.weights_history = []
