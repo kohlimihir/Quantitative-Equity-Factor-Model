@@ -2,9 +2,9 @@
   COMPREHENSIVE DIAGNOSTIC REPORT
 ==============================================================================
 
-Generated: 2026-05-08 22:42:40
-Configuration: baseline
-Total Runtime: 14.2 minutes
+Generated: 2026-05-09 14:56:43
+Configuration: optimized_low_turnover
+Total Runtime: 5.7 minutes
 
 PIPELINE CONFIGURATION:
 ------------------------------------------------------------------------------
@@ -27,32 +27,34 @@ MODEL PERFORMANCE:
   ----------------------------------------------------------------------------
   Ridge                          0.01464    0.08298      1.029
   Lightgbm                       0.01324    0.10067      1.152
-  Sector Neutral                 0.00146    0.01177      0.864
+  Sector Neutral                 0.00730    0.06303      0.962
 
 ADVANCED FEATURES:
 ------------------------------------------------------------------------------
   Hyperparameter Tuning: ⚠ DISABLED
-  Ensemble Models: ⚠ DISABLED
+  Ensemble Models: ✓ ENABLED
+    Ensemble Mean IC: 0.01961
+    Ensemble IC-IR: 0.13591
   Sector-Specific Models: ⚠ DISABLED
 
 TURNOVER ANALYSIS:
 ------------------------------------------------------------------------------
-  Mean Monthly Turnover: 34.9%
-  Annual Turnover: 419%
-  Target Turnover: 25.0%
+  Mean Monthly Turnover: 24.1%
+  Annual Turnover: 290%
+  Target Turnover: 15.0%
   Status: ⚠ ABOVE TARGET
 
 OUT-OF-TIME VALIDATION:
 ------------------------------------------------------------------------------
   OOT Months: 16
-  OOT Mean IC: 0.03998
-  OOT IC-IR: 0.28189
-  OOT Sharpe: 0.886
+  OOT Mean IC: 0.03677
+  OOT IC-IR: 0.27186
+  OOT Sharpe: 1.272
 
 NET PERFORMANCE (10bps costs):
 ------------------------------------------------------------------------------
-  Net Sharpe Ratio: 0.848
-  Cumulative Return: 152.04%
+  Net Sharpe Ratio: 0.950
+  Cumulative Return: 156.51%
 
 ==============================================================================
   DIAGNOSTIC REPORT COMPLETE

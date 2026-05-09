@@ -167,6 +167,17 @@ FEATURES = [
     "LogMktCap",                             # G7 Size
     "VolRatio",                              # G8 Liquidity
 ]
+
+# Optimized feature set based on IC analysis (removes low/negative IC features)
+OPTIMIZED_FEATURES = [
+    "RevGrowth_YoY","EarnGrowth_YoY",       # G6 Growth (highest IC)
+    "IdioVol","Beta_12","Vol_12",           # G2 Risk (strong IC)
+    "Mom_6_1","Mom_12_1",                   # G1 Momentum (positive IC)
+    "EV_EBITDA","PE_TTM",                   # G4 Value (moderate IC)
+    "ROE",                                   # G5 Quality (keep best)
+    "MaxRet_1M","VolRatio",                 # G3 Technical, G8 Liquidity
+]
+
 TARGET = "Next_Month_Return"
 
 FEATURE_GROUPS = {
@@ -197,6 +208,32 @@ FEATURE_ENGINEERING_CONFIG = {
         "Mom_12_1", "Vol_12", "PB_ratio", "ROE", "LogMktCap"
     ],
 }
+
+
+def get_features_from_config(config=None):
+    """
+    Get the feature list based on configuration.
+    
+    Args:
+        config: Configuration dict with 'features' section
+        
+    Returns:
+        List of feature names to use
+    """
+    if config is None:
+        return FEATURES
+    
+    features_config = config.get("features", {})
+    
+    # Check if specific features are selected
+    if not features_config.get("use_all_features", True):
+        selected = features_config.get("selected_features", None)
+        if selected and isinstance(selected, list):
+            print(f"Using {len(selected)} selected features from config")
+            return selected
+    
+    # Default to all features
+    return FEATURES
 
 
 # ── Cache helpers ──────────────────────────────────────────────────────────────

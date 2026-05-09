@@ -1,8 +1,8 @@
 {
   "pipeline_info": {
-    "configuration": "baseline",
-    "total_runtime_minutes": 14.24165522257487,
-    "timestamp": "2026-05-08 22:42:40",
+    "configuration": "optimized_low_turnover",
+    "total_runtime_minutes": 5.712622316678365,
+    "timestamp": "2026-05-09 14:56:43",
     "universe_size": 239,
     "time_periods": 71,
     "features_count": 19
@@ -40,9 +40,9 @@
       "sharpe": 1.1516238101120757
     },
     "sector_neutral": {
-      "mean_ic": 0.00145561138144132,
-      "ic_ir": 0.011768582885779168,
-      "sharpe": 0.8638364597767468
+      "mean_ic": 0.00730231325131833,
+      "ic_ir": 0.06303167170895359,
+      "sharpe": 0.9619809532067778
     }
   },
   "hyperparameter_tuning": {
@@ -51,27 +51,27 @@
     "lgbm_best_score": null
   },
   "ensemble": {
-    "enabled": false,
-    "mean_ic": null,
-    "ic_ir": null
+    "enabled": true,
+    "mean_ic": 0.019606039010967795,
+    "ic_ir": 0.1359102845265682
   },
   "sector_specific": {
     "enabled": false,
     "overall_ic": null
   },
   "turnover": {
-    "mean_monthly": 0.3492753623188406,
-    "annual": 4.191304347826087,
-    "target": 0.25
+    "mean_monthly": 0.24130434782608698,
+    "annual": 2.8956521739130436,
+    "target": 0.15
   },
   "oot_validation": {
-    "mean_ic": 0.03998331688595679,
-    "ic_ir": 0.2818903330510589,
-    "sharpe": 0.8864281888188846,
+    "mean_ic": 0.036765688989327285,
+    "ic_ir": 0.27185524190311927,
+    "sharpe": 1.2723801804151293,
     "months": 16
   },
   "net_performance": {
-    "sharpe_10bps": 0.8483146169383438,
-    "cumulative_return": 1.5204194925516035
+    "sharpe_10bps": 0.9501817105726499,
+    "cumulative_return": 1.5650621611913857
   }
 }

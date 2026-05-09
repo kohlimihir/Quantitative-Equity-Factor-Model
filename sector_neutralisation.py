@@ -52,12 +52,12 @@ warnings.filterwarnings("ignore")
 
 from data_loader import FEATURES, TARGET, SECTOR_MAP
 
-TOP_PER_SECTOR      = 3      # 3 × 5 sectors = 15 stocks/month
-REBAL_THRESHOLD     = 0.12   # challenger must beat holder by 12 rank pct points
-EWM_ALPHA           = 0.50   # weight on current month rank (0.5 on previous)
-HOLD_BONUS_PER_MONTH = 0.02  # +2 rank pct points per month held (capped at 5)
+TOP_PER_SECTOR      = 4      # 4 × 5 sectors = 20 stocks/month (wider portfolio = less turnover)
+REBAL_THRESHOLD     = 0.25   # challenger must beat holder by 25 rank pct points (higher = less turnover)
+EWM_ALPHA           = 0.70   # weight on current month rank (0.3 on previous, higher = more smoothing)
+HOLD_BONUS_PER_MONTH = 0.03  # +3 rank pct points per month held (capped at 5)
 HOLD_BONUS_CAP       = 5     # max months of bonus accrual
-MIN_HOLD_PERIOD      = 0     # minimum months before a stock can be sold (0 = no constraint)
+MIN_HOLD_PERIOD      = 3     # minimum months before a stock can be sold (3 = strong turnover reduction)
 
 LGB_PARAMS = {
     "objective"        : "regression",
