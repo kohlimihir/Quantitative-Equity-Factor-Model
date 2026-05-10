@@ -1,0 +1,66 @@
+name: CI - Code Validation
+
+on:
+  push:
+    branches: [ opus_test, main ]
+  pull_request:
+    branches: [ opus_test, main ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Validate Python syntax
+      run: |
+        echo "🔍 Validating Python files..."
+        python -m py_compile run_all.py
+        python -m py_compile model.py
+        python -m py_compile data_loader.py
+        python -m py_compile config_manager.py
+        python -m py_compile ensemble_model.py
+        python -m py_compile feature_analyzer.py
+        python -m py_compile leakage_detector.py
+        python -m py_compile oot_validation.py
+        python -m py_compile sector_neutralisation.py
+        python -m py_compile shap_explainability.py
+        python -m py_compile turnover_optimizer.py
+        python -m py_compile app.py
+        python -m py_compile app_cloud.py
+        python -m py_compile test_dashboard.py
+        echo "✅ All Python files validated successfully"
+    
+    - name: Check imports
+      run: |
+        echo "📦 Checking imports..."
+        python -c "import streamlit; print(f'✅ Streamlit {streamlit.__version__}')"
+        python -c "import pandas; print(f'✅ Pandas {pandas.__version__}')"
+        python -c "import numpy; print(f'✅ Numpy {numpy.__version__}')"
+        python -c "import sklearn; print(f'✅ Scikit-learn {sklearn.__version__}')"
+        python -c "import lightgbm; print(f'✅ LightGBM {lightgbm.__version__}')"
+        echo "✅ All imports successful"
+    
+    - name: Create summary
+      run: |
+        echo "## ✅ Code Validation Passed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Validated Files" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Core pipeline files" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Dashboard files" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ All dependencies installed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status:** Ready for deployment 🚀" >> $GITHUB_STEP_SUMMARY
