@@ -2,7 +2,7 @@ name: Run Equity Factor Model
 
 on:
   push:
-    branches: [ main ]
+    branches: [ opus_test ]
   schedule:
     # Run on 1st of every month at 00:00 UTC
     - cron: '0 0 1 * *'
