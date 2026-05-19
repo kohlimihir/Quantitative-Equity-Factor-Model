@@ -2,7 +2,7 @@
 
 A machine learning-powered quantitative trading system that predicts monthly stock returns using fundamental and technical factors. Built with ensemble methods, sector neutralization, and transaction cost optimization.
 
-[![Live Dashboard](https://img.shields.io/badge/Dashboard-Live-brightgreen)]([YOUR_STREAMLIT_DASHBOARD_URL])
+[![Live Dashboard](https://img.shields.io/badge/Dashboard-Live-brightgreen)]((https://quantitative-equity-factor-model-cblvmbde8cqd8pbxxvomfd.streamlit.app/))
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
