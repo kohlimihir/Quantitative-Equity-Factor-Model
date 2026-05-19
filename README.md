@@ -10,7 +10,7 @@ A machine learning-powered quantitative trading system that predicts monthly sto
 
 **Interactive Dashboard**: [YOUR_STREAMLIT_DASHBOARD_URL]
 
-> Replace `[YOUR_STREAMLIT_DASHBOARD_URL]` with your deployed Streamlit Cloud URL
+> Replace `(https://quantitative-equity-factor-model-cblvmbde8cqd8pbxxvomfd.streamlit.app/)` with your deployed Streamlit Cloud URL
 
 ---
 
