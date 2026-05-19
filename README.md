@@ -8,9 +8,7 @@ A machine learning-powered quantitative trading system that predicts monthly sto
 
 ## 🎯 Live Demo
 
-**Interactive Dashboard**: [YOUR_STREAMLIT_DASHBOARD_URL]
-
-> Replace `(https://quantitative-equity-factor-model-cblvmbde8cqd8pbxxvomfd.streamlit.app/)` with your deployed Streamlit Cloud URL
+**Interactive Dashboard**: https://quantitative-equity-factor-model-cblvmbde8cqd8pbxxvomfd.streamlit.app/
 
 ---
 
