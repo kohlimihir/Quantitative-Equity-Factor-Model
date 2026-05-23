@@ -41,7 +41,6 @@ jobs:
         python -m py_compile turnover_optimizer.py
         python -m py_compile app.py
         python -m py_compile app_cloud.py
-        python -m py_compile test_dashboard.py
         echo "✅ All Python files validated successfully"
     
     - name: Check imports
