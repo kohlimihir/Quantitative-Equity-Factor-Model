@@ -2,9 +2,9 @@
   COMPREHENSIVE DIAGNOSTIC REPORT
 ==============================================================================
 
-Generated: 2026-05-14 23:18:55
+Generated: 2026-05-23 17:43:36
 Configuration: optimized_low_turnover
-Total Runtime: 15.7 minutes
+Total Runtime: 12.3 minutes
 
 PIPELINE CONFIGURATION:
 ------------------------------------------------------------------------------
@@ -25,36 +25,36 @@ MODEL PERFORMANCE:
 ------------------------------------------------------------------------------
   Model                          Mean IC      IC-IR     Sharpe
   ----------------------------------------------------------------------------
-  Ridge                          0.01150    0.06673      1.083
-  Lightgbm                       0.01962    0.14364      1.258
-  Sector Neutral                 0.01085    0.08741      1.087
+  Ridge                          0.02105    0.11731      1.053
+  Lightgbm                       0.02274    0.17059      1.290
+  Sector Neutral                 0.01875    0.15858      1.132
 
 ADVANCED FEATURES:
 ------------------------------------------------------------------------------
   Hyperparameter Tuning: ⚠ DISABLED
   Ensemble Models: ✓ ENABLED
-    Ensemble Mean IC: 0.02201
-    Ensemble IC-IR: 0.15147
+    Ensemble Mean IC: 0.03518
+    Ensemble IC-IR: 0.23294
   Sector-Specific Models: ⚠ DISABLED
 
 TURNOVER ANALYSIS:
 ------------------------------------------------------------------------------
-  Mean Monthly Turnover: 25.0%
-  Annual Turnover: 300%
+  Mean Monthly Turnover: 23.7%
+  Annual Turnover: 284%
   Target Turnover: 15.0%
   Status: ⚠ ABOVE TARGET
 
 OUT-OF-TIME VALIDATION:
 ------------------------------------------------------------------------------
   OOT Months: 16
-  OOT Mean IC: 0.02415
-  OOT IC-IR: 0.17390
-  OOT Sharpe: 1.300
+  OOT Mean IC: 0.03110
+  OOT IC-IR: 0.21688
+  OOT Sharpe: 1.303
 
 NET PERFORMANCE (10bps costs):
 ------------------------------------------------------------------------------
-  Net Sharpe Ratio: 1.076
-  Cumulative Return: 192.73%
+  Net Sharpe Ratio: 1.121
+  Cumulative Return: 222.28%
 
 ==============================================================================
   DIAGNOSTIC REPORT COMPLETE

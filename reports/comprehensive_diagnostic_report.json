@@ -1,8 +1,8 @@
 {
   "pipeline_info": {
     "configuration": "optimized_low_turnover",
-    "total_runtime_minutes": 15.742701343695323,
-    "timestamp": "2026-05-14 23:18:55",
+    "total_runtime_minutes": 12.308789849281311,
+    "timestamp": "2026-05-23 17:43:36",
     "universe_size": 239,
     "time_periods": 71,
     "features_count": 19
@@ -21,8 +21,8 @@
       "Mom_6_1"
     ],
     "bottom_features": [
-      "Mom_1",
-      "EV_EBITDA",
+      "LogMktCap",
+      "ROE",
       "PE_TTM",
       "GrossMargin",
       "PB_ratio"
@@ -30,19 +30,19 @@
   },
   "model_performance": {
     "ridge": {
-      "mean_ic": 0.01149799364594167,
-      "ic_ir": 0.06673432455604762,
-      "sharpe": 1.0828069213067122
+      "mean_ic": 0.021045677534813016,
+      "ic_ir": 0.11730913509511505,
+      "sharpe": 1.052893105887079
     },
     "lightgbm": {
-      "mean_ic": 0.019616743276069062,
-      "ic_ir": 0.14364235229421032,
-      "sharpe": 1.257714524801935
+      "mean_ic": 0.022738001926167782,
+      "ic_ir": 0.1705884985292567,
+      "sharpe": 1.2903383767370942
     },
     "sector_neutral": {
-      "mean_ic": 0.01085045265441798,
-      "ic_ir": 0.08741479601098104,
-      "sharpe": 1.0874684052960895
+      "mean_ic": 0.018751481607045484,
+      "ic_ir": 0.15858433365731556,
+      "sharpe": 1.1317874676379387
     }
   },
   "hyperparameter_tuning": {
@@ -52,26 +52,26 @@
   },
   "ensemble": {
     "enabled": true,
-    "mean_ic": 0.022010696405149428,
-    "ic_ir": 0.15146940338890819
+    "mean_ic": 0.035182333848464045,
+    "ic_ir": 0.2329433039313998
   },
   "sector_specific": {
     "enabled": false,
     "overall_ic": null
   },
   "turnover": {
-    "mean_monthly": 0.25,
-    "annual": 3.0,
+    "mean_monthly": 0.23695652173913045,
+    "annual": 2.8434782608695652,
     "target": 0.15
   },
   "oot_validation": {
-    "mean_ic": 0.02415132830961625,
-    "ic_ir": 0.17389923539205027,
-    "sharpe": 1.2997677271775305,
+    "mean_ic": 0.031097248791276698,
+    "ic_ir": 0.21687571276578374,
+    "sharpe": 1.3034797351517216,
     "months": 16
   },
   "net_performance": {
-    "sharpe_10bps": 1.0757605010978215,
-    "cumulative_return": 1.9272905783003402
+    "sharpe_10bps": 1.121389897597415,
+    "cumulative_return": 2.2228437463548545
   }
 }
