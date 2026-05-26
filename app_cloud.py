@@ -446,8 +446,8 @@ def show_stock_analysis(predictions):
     
     st.markdown("""
     <div class="info-box">
-    📌 <b>How to use:</b> Select stocks to view their <b>predicted returns over time</b>. 
-    Prediction shows expected monthly return (e.g., 0.03 = +3% expected gain next month).
+    📌 <b>How to use:</b> Select stocks to view their <b>predicted vs actual returns</b>. 
+    Blue line = model prediction, Green line = actual return. Gap shows model accuracy.
     </div>
     """, unsafe_allow_html=True)
     
@@ -475,56 +475,91 @@ def show_stock_analysis(predictions):
             col1, col2 = st.columns([2, 1])
             
             with col1:
-                # Enhanced time series chart
                 fig = go.Figure()
                 
-                # Add prediction line
+                # Add prediction line (blue)
                 fig.add_trace(go.Scatter(
                     x=ticker_data['date'],
                     y=ticker_data['prediction'],
                     mode='lines+markers',
-                    name='Prediction',
+                    name='Predicted',
                     line=dict(color='#1f77b4', width=3),
-                    marker=dict(size=8),
-                    hovertemplate='<b>Date:</b> %{x|%Y-%m}<br><b>Prediction:</b> %{y:.4f}<extra></extra>'
+                    marker=dict(size=8, symbol='circle'),
+                    hovertemplate='<b>%{x|%b %Y}</b><br>Predicted: %{y:.2%}<extra></extra>'
                 ))
                 
-                # Add zero line
-                fig.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5)
-                
-                # Add trend line (only if enough data points)
-                if len(ticker_data) >= 3:
-                    try:
-                        z = np.polyfit(range(len(ticker_data)), ticker_data['prediction'], 1)
-                        p = np.poly1d(z)
+                # Add actual returns line (green) if available
+                if 'actual' in ticker_data.columns:
+                    actual_data = ticker_data.dropna(subset=['actual'])
+                    if len(actual_data) > 0:
                         fig.add_trace(go.Scatter(
-                            x=ticker_data['date'],
-                            y=p(range(len(ticker_data))),
-                            mode='lines',
-                            name='Trend',
-                            line=dict(color='orange', width=2, dash='dot'),
-                            hovertemplate='<b>Trend</b><extra></extra>'
+                            x=actual_data['date'],
+                            y=actual_data['actual'],
+                            mode='lines+markers',
+                            name='Actual',
+                            line=dict(color='#2ca02c', width=3),
+                            marker=dict(size=8, symbol='diamond'),
+                            hovertemplate='<b>%{x|%b %Y}</b><br>Actual: %{y:.2%}<extra></extra>'
                         ))
-                    except:
-                        pass  # Skip trend line if calculation fails
                 
-                fig.update_layout(
-                    title=f"{ticker} - Predicted Monthly Returns Over Time",
-                    xaxis_title="Date",
-                    yaxis_title="Predicted Return (e.g., 0.05 = +5%)",
-                    hovermode='x unified',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font=dict(size=12),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                # Add zero line
+                fig.add_hline(
+                    y=0, 
+                    line_dash="dash", 
+                    line_color="rgba(255,0,0,0.3)", 
+                    line_width=2,
+                    annotation_text="Zero Return",
+                    annotation_position="right"
                 )
+                
+                # Enhanced layout
+                fig.update_layout(
+                    title={
+                        'text': f"{ticker} - Predicted vs Actual Returns",
+                        'font': {'size': 18, 'color': '#1f77b4', 'family': 'Arial Black'}
+                    },
+                    xaxis=dict(
+                        title="Month",
+                        showgrid=True,
+                        gridcolor='rgba(200,200,200,0.2)',
+                        tickformat='%b %Y',
+                        dtick='M1',
+                        tickangle=-45,
+                        tickfont=dict(size=11)
+                    ),
+                    yaxis=dict(
+                        title="Return",
+                        showgrid=True,
+                        gridcolor='rgba(200,200,200,0.2)',
+                        tickformat='.1%',
+                        zeroline=True,
+                        zerolinecolor='rgba(255,0,0,0.3)',
+                        zerolinewidth=2
+                    ),
+                    hovermode='x unified',
+                    plot_bgcolor='rgba(240,240,240,0.3)',
+                    paper_bgcolor='white',
+                    font=dict(size=12, family='Arial'),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1,
+                        bgcolor='rgba(255,255,255,0.8)',
+                        bordercolor='rgba(0,0,0,0.2)',
+                        borderwidth=1
+                    ),
+                    margin=dict(l=60, r=40, t=80, b=80),
+                    height=400
+                )
+                
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
                 st.markdown("#### 📈 Latest Prediction")
                 latest = ticker_data.iloc[-1]
                 
-                # Prediction with color coding and explanation
                 pred_value = latest['prediction']
                 pred_color = "🟢" if pred_value > 0 else "🔴"
                 pred_pct = pred_value * 100
@@ -547,11 +582,33 @@ def show_stock_analysis(predictions):
                 st.metric("Sector", latest['sector'])
                 st.metric("Date", latest['date'].strftime('%b %Y'))
                 
+                # Accuracy metrics
+                if 'actual' in ticker_data.columns:
+                    valid_data = ticker_data.dropna(subset=['actual', 'prediction'])
+                    if len(valid_data) >= 2:
+                        st.markdown("#### 🎯 Model Accuracy")
+                        
+                        correlation = valid_data['prediction'].corr(valid_data['actual'])
+                        rmse = np.sqrt(((valid_data['prediction'] - valid_data['actual']) ** 2).mean())
+                        mae = (valid_data['prediction'] - valid_data['actual']).abs().mean()
+                        
+                        corr_quality = "Strong" if correlation > 0.5 else "Good" if correlation > 0.3 else "Moderate"
+                        corr_color = "success-box" if correlation > 0.3 else "info-box"
+                        
+                        st.markdown(f"""
+                        <div class="{corr_color}">
+                        <b>Correlation:</b> {correlation:.3f} ({corr_quality})<br>
+                        <b>RMSE:</b> {rmse:.4f}<br>
+                        <b>MAE:</b> {mae:.4f}<br>
+                        <b>Data Points:</b> {len(valid_data)}
+                        </div>
+                        """, unsafe_allow_html=True)
+                
                 # Statistics
                 st.markdown("#### 📊 Statistics")
                 st.markdown(f"""
                 <div class="info-box">
-                <b>Mean:</b> {ticker_data['prediction'].mean():.4f}<br>
+                <b>Mean Pred:</b> {ticker_data['prediction'].mean():.4f}<br>
                 <b>Std Dev:</b> {ticker_data['prediction'].std():.4f}<br>
                 <b>Min:</b> {ticker_data['prediction'].min():.4f}<br>
                 <b>Max:</b> {ticker_data['prediction'].max():.4f}<br>

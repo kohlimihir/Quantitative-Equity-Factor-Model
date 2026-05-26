@@ -61,6 +61,7 @@ class PredictionResponse(BaseModel):
     ticker: str
     date: str
     prediction: float
+    actual: Optional[float] = None
     sector: str
     rank: Optional[int] = None
 
@@ -130,6 +131,7 @@ def get_predictions(
             ticker=row['ticker'],
             date=row['date'].strftime('%Y-%m'),
             prediction=float(row['prediction']),
+            actual=float(row['actual']) if pd.notna(row['actual']) else None,
             sector=row['sector']
         ))
     
@@ -159,6 +161,7 @@ def get_ticker_predictions(ticker: str):
             "ticker": row['ticker'],
             "date": row['date'].strftime('%Y-%m'),
             "prediction": float(row['prediction']),
+            "actual": float(row['actual']) if pd.notna(row['actual']) else None,
             "sector": row['sector']
         })
     
