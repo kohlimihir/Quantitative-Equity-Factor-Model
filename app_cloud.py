@@ -138,6 +138,14 @@ def main():
     st.markdown('<h1 class="main-header">📈 Equity Factor Model Dashboard</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Multi-Factor Quantitative Strategy with Machine Learning</p>', unsafe_allow_html=True)
     
+    # Add explanation banner
+    st.markdown("""
+    <div class="info-box">
+    <b>💡 What This Dashboard Shows:</b> The model predicts <b>next month's stock returns</b> using 19 factors. 
+    Higher prediction = higher expected return. Predictions are ranked to select top stocks for portfolio.
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Sidebar
     with st.sidebar:
         st.image("https://img.icons8.com/fluency/96/000000/stocks.png", width=80)
@@ -157,7 +165,21 @@ def main():
         <b>Features:</b> 19 factors<br>
         <b>Model:</b> Ridge + LightGBM<br>
         <b>Rebalance:</b> Monthly<br>
+        <b>Prediction:</b> Next month return<br>
         <b>API:</b> <code>{API_URL.split('//')[1][:20]}...</code>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        st.markdown("### ❓ What is Prediction?")
+        st.markdown("""
+        <div class="success-box">
+        <b>Prediction</b> = Expected return for next month<br><br>
+        • <b>Positive</b> = Stock expected to go up<br>
+        • <b>Negative</b> = Stock expected to go down<br>
+        • <b>Higher value</b> = Better investment<br><br>
+        Example: 0.05 = +5% expected return
         </div>
         """, unsafe_allow_html=True)
         
@@ -210,6 +232,39 @@ def main():
 def show_overview(predictions, performance):
     """Overview tab"""
     st.markdown("## 📊 Model Overview")
+    
+    # Add comprehensive explanation
+    with st.expander("❓ What Do These Predictions Mean?", expanded=False):
+        st.markdown("""
+        ### 🎯 Understanding Predictions
+        
+        **What is a "Prediction"?**
+        - The model predicts **next month's stock return** (gain or loss)
+        - Example: Prediction of **0.05** means the model expects the stock to gain **+5%** next month
+        - Example: Prediction of **-0.02** means the model expects the stock to lose **-2%** next month
+        
+        **How Are Predictions Used?**
+        1. **Rank all 239 stocks** by their predictions
+        2. **Select top stocks** (highest predictions) for portfolio
+        3. **Rebalance monthly** based on new predictions
+        
+        **What Makes a Good Prediction?**
+        - **Positive value** = Expected to go up (good for buying)
+        - **Higher value** = Better expected return
+        - **Top 20 stocks** = Best investment opportunities
+        
+        **Example Portfolio Strategy:**
+        - Buy the **top 20 stocks** with highest predictions
+        - Hold for **one month**
+        - Rebalance based on **new predictions**
+        
+        **Important Notes:**
+        - Predictions are **probabilities**, not guarantees
+        - Past performance doesn't guarantee future results
+        - Model is validated on **out-of-time data** to ensure reliability
+        """)
+    
+    st.markdown("---")
     
     # Key Metrics with enhanced styling
     col1, col2, col3, col4 = st.columns(4)
@@ -391,7 +446,8 @@ def show_stock_analysis(predictions):
     
     st.markdown("""
     <div class="info-box">
-    📌 <b>How to use:</b> Select one or more stocks to view their prediction history and latest metrics
+    📌 <b>How to use:</b> Select stocks to view their <b>predicted returns over time</b>. 
+    Prediction shows expected monthly return (e.g., 0.03 = +3% expected gain next month).
     </div>
     """, unsafe_allow_html=True)
     
@@ -436,22 +492,26 @@ def show_stock_analysis(predictions):
                 # Add zero line
                 fig.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5)
                 
-                # Add trend line
-                z = np.polyfit(range(len(ticker_data)), ticker_data['prediction'], 1)
-                p = np.poly1d(z)
-                fig.add_trace(go.Scatter(
-                    x=ticker_data['date'],
-                    y=p(range(len(ticker_data))),
-                    mode='lines',
-                    name='Trend',
-                    line=dict(color='orange', width=2, dash='dot'),
-                    hovertemplate='<b>Trend</b><extra></extra>'
-                ))
+                # Add trend line (only if enough data points)
+                if len(ticker_data) >= 3:
+                    try:
+                        z = np.polyfit(range(len(ticker_data)), ticker_data['prediction'], 1)
+                        p = np.poly1d(z)
+                        fig.add_trace(go.Scatter(
+                            x=ticker_data['date'],
+                            y=p(range(len(ticker_data))),
+                            mode='lines',
+                            name='Trend',
+                            line=dict(color='orange', width=2, dash='dot'),
+                            hovertemplate='<b>Trend</b><extra></extra>'
+                        ))
+                    except:
+                        pass  # Skip trend line if calculation fails
                 
                 fig.update_layout(
-                    title=f"{ticker} - Prediction Time Series",
+                    title=f"{ticker} - Predicted Monthly Returns Over Time",
                     xaxis_title="Date",
-                    yaxis_title="Predicted Return",
+                    yaxis_title="Predicted Return (e.g., 0.05 = +5%)",
                     hovermode='x unified',
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
@@ -461,17 +521,28 @@ def show_stock_analysis(predictions):
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                st.markdown("#### 📈 Latest Metrics")
+                st.markdown("#### 📈 Latest Prediction")
                 latest = ticker_data.iloc[-1]
                 
-                # Prediction with color coding
+                # Prediction with color coding and explanation
                 pred_value = latest['prediction']
                 pred_color = "🟢" if pred_value > 0 else "🔴"
+                pred_pct = pred_value * 100
+                
                 st.metric(
-                    "Prediction",
+                    "Expected Return",
                     f"{pred_value:.4f}",
-                    delta=f"{pred_color} {'Positive' if pred_value > 0 else 'Negative'}"
+                    delta=f"{pred_color} {pred_pct:+.2f}%",
+                    help="Predicted return for next month"
                 )
+                
+                st.markdown(f"""
+                <div class="{'success-box' if pred_value > 0 else 'warning-box'}">
+                <b>Interpretation:</b><br>
+                Model expects this stock to {'gain' if pred_value > 0 else 'lose'} 
+                <b>{abs(pred_pct):.2f}%</b> next month
+                </div>
+                """, unsafe_allow_html=True)
                 
                 st.metric("Sector", latest['sector'])
                 st.metric("Date", latest['date'].strftime('%b %Y'))
