@@ -86,16 +86,35 @@ st.markdown("""
 API_URL = st.secrets.get("API_URL", "http://localhost:8000")
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def fetch_predictions(limit=10000, all_dates=True):
-    """Fetch predictions from API"""
+def fetch_predictions(limit=10000):
+    """Fetch predictions from API - fetches data for all tickers"""
     try:
-        response = requests.get(
-            f"{API_URL}/predictions?limit={limit}&all_dates={str(all_dates).lower()}", 
-            timeout=30
-        )
-        response.raise_for_status()
-        data = response.json()
-        df = pd.DataFrame(data)
+        # Get list of all tickers first
+        tickers_response = requests.get(f"{API_URL}/predictions?limit=1000", timeout=30)
+        tickers_response.raise_for_status()
+        tickers_data = tickers_response.json()
+        
+        if not tickers_data:
+            return None
+        
+        # Extract unique tickers (limit to reasonable number for performance)
+        tickers = list(set([item['ticker'] for item in tickers_data]))[:50]  # Limit to 50 tickers for now
+        
+        # Fetch historical data for each ticker
+        all_data = []
+        for ticker in tickers:
+            try:
+                ticker_response = requests.get(f"{API_URL}/predictions/{ticker}", timeout=10)
+                ticker_response.raise_for_status()
+                ticker_data = ticker_response.json()
+                all_data.extend(ticker_data)
+            except:
+                continue
+        
+        if not all_data:
+            return None
+        
+        df = pd.DataFrame(all_data)
         df['date'] = pd.to_datetime(df['date'])
         return df
     except Exception as e:
@@ -203,8 +222,9 @@ def main():
         st.info("Click 🔄 Refresh to update data from the API")
     
     # Fetch data
-    predictions = fetch_predictions()
-    performance = fetch_performance()
+    with st.spinner("📊 Loading predictions data... This may take a moment on first load."):
+        predictions = fetch_predictions()
+        performance = fetch_performance()
     
     if predictions is None:
         st.error("⚠️ Unable to load data from API. Please check the connection.")
