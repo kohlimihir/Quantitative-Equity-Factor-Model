@@ -8,6 +8,7 @@ import requests
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import numpy as np
 
 st.set_page_config(
     page_title="Equity Factor Model Dashboard",
@@ -15,6 +16,71 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #666;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .info-box {
+        background-color: #f0f8ff;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #1f77b4;
+        margin: 1rem 0;
+    }
+    .success-box {
+        background-color: #f0fff4;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #48bb78;
+        margin: 1rem 0;
+    }
+    .warning-box {
+        background-color: #fffaf0;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #ed8936;
+        margin: 1rem 0;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+        font-weight: 600;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding: 10px 20px;
+        background-color: #f0f2f6;
+        border-radius: 8px 8px 0 0;
+        font-weight: 500;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1f77b4;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # API Configuration
 API_URL = st.secrets.get("API_URL", "http://localhost:8000")
@@ -68,29 +134,48 @@ def fetch_features():
         return None
 
 def main():
-    st.title("📈 Equity Factor Model Dashboard")
-    st.markdown("**Multi-Factor Quantitative Strategy with Machine Learning**")
-    st.markdown(f"*Data source: {API_URL}*")
+    # Header with custom styling
+    st.markdown('<h1 class="main-header">📈 Equity Factor Model Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Multi-Factor Quantitative Strategy with Machine Learning</p>', unsafe_allow_html=True)
     
     # Sidebar
     with st.sidebar:
-        st.header("Settings")
-        refresh = st.button("🔄 Refresh Data")
+        st.image("https://img.icons8.com/fluency/96/000000/stocks.png", width=80)
+        st.markdown("### ⚙️ Settings")
+        
+        refresh = st.button("🔄 Refresh Data", use_container_width=True)
         if refresh:
             st.cache_data.clear()
             st.rerun()
         
         st.markdown("---")
-        st.markdown("### About")
-        st.markdown("""
-        This dashboard displays predictions from a quantitative equity factor model.
         
-        **Features:**
-        - 239 stocks analyzed
-        - 19 fundamental & technical factors
-        - Ensemble ML model
-        - Monthly updates
-        """)
+        st.markdown("### 📊 Model Info")
+        st.markdown(f"""
+        <div class="info-box">
+        <b>Universe:</b> 239 stocks<br>
+        <b>Features:</b> 19 factors<br>
+        <b>Model:</b> Ridge + LightGBM<br>
+        <b>Rebalance:</b> Monthly<br>
+        <b>API:</b> <code>{API_URL.split('//')[1][:20]}...</code>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        st.markdown("### 📚 Quick Guide")
+        with st.expander("📊 Overview Tab"):
+            st.markdown("View key metrics, top stocks, and sector distribution")
+        with st.expander("🎯 Stock Analysis Tab"):
+            st.markdown("Analyze individual stock predictions over time")
+        with st.expander("🔍 Feature Importance Tab"):
+            st.markdown("See which factors drive predictions")
+        with st.expander("📈 Performance Tab"):
+            st.markdown("Out-of-time validation results")
+        
+        st.markdown("---")
+        st.markdown("##### 💡 Tip")
+        st.info("Click 🔄 Refresh to update data from the API")
     
     # Fetch data
     predictions = fetch_predictions()
@@ -124,133 +209,303 @@ def main():
 
 def show_overview(predictions, performance):
     """Overview tab"""
-    st.header("Model Overview")
+    st.markdown("## 📊 Model Overview")
     
-    # Metrics
+    # Key Metrics with enhanced styling
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Stocks", len(predictions['ticker'].unique()))
+        total_stocks = len(predictions['ticker'].unique())
+        st.metric(
+            label="📈 Total Stocks",
+            value=total_stocks,
+            delta=f"{total_stocks} analyzed",
+            help="Number of stocks in the investment universe"
+        )
     
     with col2:
         latest_date = predictions['date'].max()
-        st.metric("Latest Month", latest_date.strftime('%Y-%m'))
+        st.metric(
+            label="📅 Latest Month",
+            value=latest_date.strftime('%b %Y'),
+            delta=latest_date.strftime('%Y-%m-%d'),
+            help="Most recent prediction date"
+        )
     
     with col3:
         if performance:
-            st.metric("Mean IC", f"{performance['mean_ic']:.4f}")
+            ic_value = performance['mean_ic']
+            ic_quality = "Strong" if ic_value > 0.03 else "Good" if ic_value > 0.01 else "Moderate"
+            st.metric(
+                label="🎯 Mean IC",
+                value=f"{ic_value:.4f}",
+                delta=ic_quality,
+                help="Information Coefficient - correlation between predictions and returns"
+            )
         else:
-            st.metric("Mean IC", "N/A")
+            st.metric("🎯 Mean IC", "N/A")
     
     with col4:
         if performance:
-            st.metric("Sharpe Ratio", f"{performance['sharpe']:.3f}")
+            sharpe = performance['sharpe']
+            sharpe_quality = "Excellent" if sharpe > 1.5 else "Good" if sharpe > 1.0 else "Fair"
+            st.metric(
+                label="📊 Sharpe Ratio",
+                value=f"{sharpe:.2f}",
+                delta=sharpe_quality,
+                help="Risk-adjusted returns (>1.0 is good)"
+            )
         else:
-            st.metric("Sharpe Ratio", "N/A")
+            st.metric("📊 Sharpe Ratio", "N/A")
     
     st.markdown("---")
     
-    # Latest predictions
+    # Latest predictions with enhanced visuals
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.subheader("📊 Prediction Distribution")
+        st.markdown("### 📊 Prediction Distribution")
         latest = predictions[predictions['date'] == predictions['date'].max()]
         
         fig = px.histogram(
             latest,
             x='prediction',
             nbins=50,
-            title=f"Latest Predictions ({latest['date'].iloc[0].strftime('%Y-%m')})"
+            title=f"Latest Predictions - {latest['date'].iloc[0].strftime('%B %Y')}",
+            labels={'prediction': 'Predicted Return', 'count': 'Number of Stocks'},
+            color_discrete_sequence=['#1f77b4']
         )
-        fig.update_layout(showlegend=False)
+        fig.update_layout(
+            showlegend=False,
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12),
+            title_font_size=16,
+            xaxis=dict(showgrid=True, gridcolor='lightgray'),
+            yaxis=dict(showgrid=True, gridcolor='lightgray')
+        )
+        fig.add_vline(x=0, line_dash="dash", line_color="red", annotation_text="Zero Return")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Add interpretation
+        positive_pct = (latest['prediction'] > 0).sum() / len(latest) * 100
+        st.markdown(f"""
+        <div class="info-box">
+        <b>📈 {positive_pct:.1f}%</b> of stocks have positive predicted returns<br>
+        <b>Mean Prediction:</b> {latest['prediction'].mean():.4f}<br>
+        <b>Std Dev:</b> {latest['prediction'].std():.4f}
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        st.subheader("🏆 Top 10 Stocks")
+        st.markdown("### 🏆 Top 10 Stocks")
         top_stocks = fetch_top_stocks(10)
         if top_stocks:
             df = pd.DataFrame(top_stocks['stocks'])
             df['prediction'] = df['prediction'].apply(lambda x: f"{x:.4f}")
-            st.dataframe(df[['ticker', 'sector', 'prediction']], hide_index=True, use_container_width=True)
+            df['rank'] = range(1, len(df) + 1)
+            
+            # Style the dataframe
+            st.dataframe(
+                df[['rank', 'ticker', 'sector', 'prediction']],
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "rank": st.column_config.NumberColumn("Rank", help="Stock ranking"),
+                    "ticker": st.column_config.TextColumn("Ticker", help="Stock symbol"),
+                    "sector": st.column_config.TextColumn("Sector", help="Industry sector"),
+                    "prediction": st.column_config.TextColumn("Prediction", help="Predicted return")
+                }
+            )
+            
+            st.markdown("""
+            <div class="success-box">
+            💡 <b>Tip:</b> These are the highest predicted returns for next month
+            </div>
+            """, unsafe_allow_html=True)
     
-    # Sector distribution
-    st.subheader("📊 Sector Distribution")
+    # Sector distribution with enhanced visuals
+    st.markdown("---")
+    st.markdown("### 🏭 Sector Analysis")
+    
     latest = predictions[predictions['date'] == predictions['date'].max()]
     sector_stats = latest.groupby('sector').agg({
-        'prediction': ['count', 'mean']
+        'prediction': ['count', 'mean', 'std']
     }).reset_index()
-    sector_stats.columns = ['Sector', 'Count', 'Avg Prediction']
+    sector_stats.columns = ['Sector', 'Count', 'Avg Prediction', 'Std Dev']
+    sector_stats = sector_stats.sort_values('Avg Prediction', ascending=False)
     
-    fig = px.bar(
-        sector_stats.sort_values('Avg Prediction', ascending=False),
-        x='Avg Prediction',
-        y='Sector',
-        orientation='h',
-        title="Average Prediction by Sector",
-        color='Avg Prediction',
-        color_continuous_scale='RdYlGn'
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    col1, col2 = st.columns([3, 2])
+    
+    with col1:
+        fig = px.bar(
+            sector_stats,
+            x='Avg Prediction',
+            y='Sector',
+            orientation='h',
+            title="Average Prediction by Sector",
+            color='Avg Prediction',
+            color_continuous_scale='RdYlGn',
+            text='Avg Prediction',
+            labels={'Avg Prediction': 'Average Predicted Return'}
+        )
+        fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(size=12),
+            title_font_size=16,
+            xaxis=dict(showgrid=True, gridcolor='lightgray'),
+            yaxis=dict(showgrid=False),
+            coloraxis_showscale=False
+        )
+        fig.add_vline(x=0, line_dash="dash", line_color="gray")
+        st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("#### 📋 Sector Summary")
+        sector_stats['Avg Prediction'] = sector_stats['Avg Prediction'].apply(lambda x: f"{x:.4f}")
+        sector_stats['Std Dev'] = sector_stats['Std Dev'].apply(lambda x: f"{x:.4f}")
+        st.dataframe(
+            sector_stats,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "Sector": st.column_config.TextColumn("Sector", width="medium"),
+                "Count": st.column_config.NumberColumn("Stocks", width="small"),
+                "Avg Prediction": st.column_config.TextColumn("Avg Return", width="small"),
+                "Std Dev": st.column_config.TextColumn("Volatility", width="small")
+            }
+        )
+        
+        best_sector = sector_stats.iloc[0]['Sector']
+        st.markdown(f"""
+        <div class="success-box">
+        🎯 <b>Best Sector:</b> {best_sector}
+        </div>
+        """, unsafe_allow_html=True)
 
 def show_stock_analysis(predictions):
     """Stock analysis tab"""
-    st.header("Stock Analysis")
+    st.markdown("## 🎯 Stock Analysis")
+    
+    st.markdown("""
+    <div class="info-box">
+    📌 <b>How to use:</b> Select one or more stocks to view their prediction history and latest metrics
+    </div>
+    """, unsafe_allow_html=True)
     
     tickers = sorted(predictions['ticker'].unique())
     
-    selected_tickers = st.multiselect(
-        "Select Stock(s) to Analyze",
-        options=tickers,
-        default=tickers[:3] if len(tickers) >= 3 else tickers
-    )
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        selected_tickers = st.multiselect(
+            "🔍 Select Stock(s) to Analyze",
+            options=tickers,
+            default=tickers[:3] if len(tickers) >= 3 else tickers,
+            help="Choose stocks to analyze their prediction trends"
+        )
+    with col2:
+        view_mode = st.radio("View Mode", ["Expanded", "Compact"], horizontal=True)
     
     if not selected_tickers:
-        st.warning("Please select at least one stock")
+        st.warning("⚠️ Please select at least one stock to begin analysis")
         return
     
     for ticker in selected_tickers:
-        with st.expander(f"📊 {ticker}", expanded=len(selected_tickers) == 1):
+        with st.expander(f"📊 {ticker}", expanded=(len(selected_tickers) == 1 or view_mode == "Expanded")):
             ticker_data = predictions[predictions['ticker'] == ticker].sort_values('date')
             
             col1, col2 = st.columns([2, 1])
             
             with col1:
+                # Enhanced time series chart
                 fig = go.Figure()
+                
+                # Add prediction line
                 fig.add_trace(go.Scatter(
                     x=ticker_data['date'],
                     y=ticker_data['prediction'],
                     mode='lines+markers',
                     name='Prediction',
-                    line=dict(color='#1f77b4', width=2)
+                    line=dict(color='#1f77b4', width=3),
+                    marker=dict(size=8),
+                    hovertemplate='<b>Date:</b> %{x|%Y-%m}<br><b>Prediction:</b> %{y:.4f}<extra></extra>'
+                ))
+                
+                # Add zero line
+                fig.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5)
+                
+                # Add trend line
+                z = np.polyfit(range(len(ticker_data)), ticker_data['prediction'], 1)
+                p = np.poly1d(z)
+                fig.add_trace(go.Scatter(
+                    x=ticker_data['date'],
+                    y=p(range(len(ticker_data))),
+                    mode='lines',
+                    name='Trend',
+                    line=dict(color='orange', width=2, dash='dot'),
+                    hovertemplate='<b>Trend</b><extra></extra>'
                 ))
                 
                 fig.update_layout(
                     title=f"{ticker} - Prediction Time Series",
                     xaxis_title="Date",
                     yaxis_title="Predicted Return",
-                    hovermode='x unified'
+                    hovermode='x unified',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(size=12),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                st.markdown("**Latest Prediction**")
+                st.markdown("#### 📈 Latest Metrics")
                 latest = ticker_data.iloc[-1]
-                st.metric("Prediction", f"{latest['prediction']:.4f}")
+                
+                # Prediction with color coding
+                pred_value = latest['prediction']
+                pred_color = "🟢" if pred_value > 0 else "🔴"
+                st.metric(
+                    "Prediction",
+                    f"{pred_value:.4f}",
+                    delta=f"{pred_color} {'Positive' if pred_value > 0 else 'Negative'}"
+                )
+                
                 st.metric("Sector", latest['sector'])
-                st.metric("Date", latest['date'].strftime('%Y-%m'))
+                st.metric("Date", latest['date'].strftime('%b %Y'))
+                
+                # Statistics
+                st.markdown("#### 📊 Statistics")
+                st.markdown(f"""
+                <div class="info-box">
+                <b>Mean:</b> {ticker_data['prediction'].mean():.4f}<br>
+                <b>Std Dev:</b> {ticker_data['prediction'].std():.4f}<br>
+                <b>Min:</b> {ticker_data['prediction'].min():.4f}<br>
+                <b>Max:</b> {ticker_data['prediction'].max():.4f}<br>
+                <b>Months:</b> {len(ticker_data)}
+                </div>
+                """, unsafe_allow_html=True)
 
 def show_features():
     """Feature importance tab"""
-    st.header("Feature Importance")
+    st.markdown("## 🔍 Feature Importance")
+    
+    st.markdown("""
+    <div class="info-box">
+    📊 <b>Feature Importance</b> shows which factors have the strongest predictive power (measured by Information Coefficient)
+    </div>
+    """, unsafe_allow_html=True)
     
     features = fetch_features()
     
     if features is None:
-        st.warning("Feature importance data not available")
+        st.warning("⚠️ Feature importance data not available")
         return
     
-    st.subheader("Top 15 Features by Mean IC")
+    # Top features visualization
+    st.markdown("### 🏆 Top 15 Features by Mean IC")
     
     top_features = features.nlargest(15, 'mean_ic')
     
@@ -259,14 +514,71 @@ def show_features():
         x='mean_ic',
         y='feature',
         orientation='h',
-        title="Feature Importance",
+        title="Feature Importance (Information Coefficient)",
         color='mean_ic',
-        color_continuous_scale='Viridis'
+        color_continuous_scale='Viridis',
+        text='mean_ic',
+        labels={'mean_ic': 'Mean IC', 'feature': 'Feature'}
+    )
+    fig.update_traces(texttemplate='%{text:.4f}', textposition='outside')
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=12),
+        title_font_size=16,
+        xaxis=dict(showgrid=True, gridcolor='lightgray'),
+        yaxis=dict(showgrid=False),
+        coloraxis_showscale=False,
+        height=500
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    st.subheader("All Features")
-    st.dataframe(features.sort_values('mean_ic', ascending=False), hide_index=True, use_container_width=True)
+    # Feature categories
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📋 All Features")
+        features_display = features.sort_values('mean_ic', ascending=False).copy()
+        features_display['mean_ic'] = features_display['mean_ic'].apply(lambda x: f"{x:.4f}")
+        features_display['ic_ir'] = features_display['ic_ir'].apply(lambda x: f"{x:.4f}")
+        
+        st.dataframe(
+            features_display,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "feature": st.column_config.TextColumn("Feature", width="medium"),
+                "mean_ic": st.column_config.TextColumn("Mean IC", width="small"),
+                "ic_ir": st.column_config.TextColumn("IC-IR", width="small")
+            }
+        )
+    
+    with col2:
+        st.markdown("### 📊 Feature Statistics")
+        
+        total_features = len(features)
+        strong_features = (features['mean_ic'] > 0.02).sum()
+        positive_features = (features['mean_ic'] > 0).sum()
+        
+        st.markdown(f"""
+        <div class="success-box">
+        <b>Total Features:</b> {total_features}<br>
+        <b>Strong (IC > 0.02):</b> {strong_features}<br>
+        <b>Positive IC:</b> {positive_features}<br>
+        <b>Best Feature:</b> {features.nlargest(1, 'mean_ic')['feature'].values[0]}<br>
+        <b>Best IC:</b> {features['mean_ic'].max():.4f}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("#### 💡 Interpretation")
+        st.markdown("""
+        <div class="info-box">
+        <b>Mean IC:</b> Higher is better (>0.02 is strong)<br>
+        <b>IC-IR:</b> Consistency of IC over time<br>
+        <b>Positive IC:</b> Feature predicts returns correctly
+        </div>
+        """, unsafe_allow_html=True)
 
 def show_performance_tab(performance):
     """Performance tab"""
@@ -301,3 +613,129 @@ def show_performance_tab(performance):
 
 if __name__ == "__main__":
     main()
+
+
+def show_performance_tab(performance):
+    """Performance tab - Enhanced version"""
+    st.markdown("## 📈 Model Performance")
+    
+    if performance is None:
+        st.warning("⚠️ Performance metrics not available")
+        return
+    
+    st.markdown("""
+    <div class="info-box">
+    📊 <b>Out-of-Time Validation:</b> Model tested on completely unseen future data to ensure real-world viability
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 🎯 Key Performance Metrics")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        ic_value = performance['mean_ic']
+        ic_delta = "Strong" if ic_value > 0.03 else "Good" if ic_value > 0.01 else "Moderate"
+        st.metric(
+            "Mean IC",
+            f"{ic_value:.4f}",
+            delta=ic_delta,
+            help="Information Coefficient - correlation between predictions and returns (>0.02 is strong)"
+        )
+    
+    with col2:
+        ic_ir = performance['ic_ir']
+        ir_delta = "Consistent" if ic_ir > 0.5 else "Variable"
+        st.metric(
+            "IC-IR",
+            f"{ic_ir:.4f}",
+            delta=ir_delta,
+            help="IC Information Ratio - consistency of IC over time (>0.5 is good)"
+        )
+    
+    with col3:
+        sharpe = performance['sharpe']
+        sharpe_delta = "Excellent" if sharpe > 1.5 else "Good" if sharpe > 1.0 else "Fair"
+        st.metric(
+            "Sharpe Ratio",
+            f"{sharpe:.2f}",
+            delta=sharpe_delta,
+            help="Risk-adjusted returns (>1.0 is good, >1.5 is excellent)"
+        )
+    
+    with col4:
+        win_rate = performance['win_rate'] * 100
+        wr_delta = "High" if win_rate > 60 else "Moderate"
+        st.metric(
+            "Win Rate",
+            f"{win_rate:.1f}%",
+            delta=wr_delta,
+            help="Percentage of months with positive IC"
+        )
+    
+    st.markdown("---")
+    
+    # Performance interpretation
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📊 Performance Summary")
+        
+        # Determine overall quality
+        quality_score = 0
+        if ic_value > 0.02: quality_score += 1
+        if ic_ir > 0.3: quality_score += 1
+        if sharpe > 1.0: quality_score += 1
+        if win_rate > 50: quality_score += 1
+        
+        if quality_score >= 3:
+            quality = "🟢 Strong Performance"
+            quality_class = "success-box"
+        elif quality_score >= 2:
+            quality = "🟡 Good Performance"
+            quality_class = "info-box"
+        else:
+            quality = "🟠 Moderate Performance"
+            quality_class = "warning-box"
+        
+        st.markdown(f"""
+        <div class="{quality_class}">
+        <h4>{quality}</h4>
+        <b>Quality Score:</b> {quality_score}/4<br><br>
+        <b>Strengths:</b><br>
+        {'✓ Strong predictive power (IC > 0.02)<br>' if ic_value > 0.02 else ''}
+        {'✓ Consistent performance (IC-IR > 0.3)<br>' if ic_ir > 0.3 else ''}
+        {'✓ Excellent risk-adjusted returns (Sharpe > 1.0)<br>' if sharpe > 1.0 else ''}
+        {'✓ High win rate (>50%)<br>' if win_rate > 50 else ''}
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("### 💡 Metrics Explained")
+        st.markdown("""
+        <div class="info-box">
+        <b>Mean IC (Information Coefficient)</b><br>
+        Measures correlation between predictions and actual returns<br>
+        • >0.03: Strong<br>
+        • 0.01-0.03: Good<br>
+        • <0.01: Weak<br><br>
+        
+        <b>IC-IR (IC Information Ratio)</b><br>
+        Measures consistency of IC over time<br>
+        • >0.5: Consistent<br>
+        • 0.2-0.5: Moderate<br>
+        • <0.2: Variable<br><br>
+        
+        <b>Sharpe Ratio</b><br>
+        Risk-adjusted returns<br>
+        • >1.5: Excellent<br>
+        • 1.0-1.5: Good<br>
+        • <1.0: Fair<br><br>
+        
+        <b>Win Rate</b><br>
+        % of months with positive IC<br>
+        • >60%: High<br>
+        • 50-60%: Moderate<br>
+        • <50%: Low
+        </div>
+        """, unsafe_allow_html=True)
