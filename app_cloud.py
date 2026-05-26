@@ -86,10 +86,13 @@ st.markdown("""
 API_URL = st.secrets.get("API_URL", "http://localhost:8000")
 
 @st.cache_data(ttl=3600)  # Cache for 1 hour
-def fetch_predictions(limit=1000):
+def fetch_predictions(limit=10000, all_dates=True):
     """Fetch predictions from API"""
     try:
-        response = requests.get(f"{API_URL}/predictions?limit={limit}", timeout=30)
+        response = requests.get(
+            f"{API_URL}/predictions?limit={limit}&all_dates={str(all_dates).lower()}", 
+            timeout=30
+        )
         response.raise_for_status()
         data = response.json()
         df = pd.DataFrame(data)
@@ -453,7 +456,7 @@ def show_stock_analysis(predictions):
     
     tickers = sorted(predictions['ticker'].unique())
     
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         selected_tickers = st.multiselect(
             "🔍 Select Stock(s) to Analyze",
@@ -463,6 +466,15 @@ def show_stock_analysis(predictions):
         )
     with col2:
         view_mode = st.radio("View Mode", ["Expanded", "Compact"], horizontal=True)
+    with col3:
+        # Date range filter
+        months_back = st.selectbox(
+            "Time Range",
+            options=[6, 12, 24, 999],
+            format_func=lambda x: f"Last {x} months" if x < 999 else "All time",
+            index=0,
+            help="Select how many months of history to display"
+        )
     
     if not selected_tickers:
         st.warning("⚠️ Please select at least one stock to begin analysis")
@@ -471,6 +483,15 @@ def show_stock_analysis(predictions):
     for ticker in selected_tickers:
         with st.expander(f"📊 {ticker}", expanded=(len(selected_tickers) == 1 or view_mode == "Expanded")):
             ticker_data = predictions[predictions['ticker'] == ticker].sort_values('date')
+            
+            # Apply date range filter
+            if months_back < 999:
+                cutoff_date = ticker_data['date'].max() - pd.DateOffset(months=months_back)
+                ticker_data = ticker_data[ticker_data['date'] >= cutoff_date]
+            
+            if len(ticker_data) == 0:
+                st.warning(f"No data available for {ticker} in selected time range")
+                continue
             
             col1, col2 = st.columns([2, 1])
             

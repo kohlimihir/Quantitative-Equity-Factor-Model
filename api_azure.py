@@ -100,7 +100,8 @@ def health_check():
 @app.get("/predictions", response_model=List[PredictionResponse])
 def get_predictions(
     date: Optional[str] = Query(None, description="Date in YYYY-MM format"),
-    limit: int = Query(100, ge=1, le=1000)
+    limit: int = Query(100, ge=1, le=1000),
+    all_dates: bool = Query(False, description="Return all dates instead of just latest")
 ):
     """Get model predictions"""
     df = load_csv_from_blob('predictions', 'ensemble_optimize_predictions.csv')
@@ -118,12 +119,17 @@ def get_predictions(
     if date:
         target_date = pd.to_datetime(date)
         df = df[df['date'] == target_date]
-    else:
+    elif not all_dates:
         latest_date = df['date'].max()
         df = df[df['date'] == latest_date]
     
-    # Get top predictions
-    df = df.nlargest(limit, 'prediction')
+    # If all_dates=True, return all data (limited by limit parameter)
+    if all_dates:
+        # Sort by date descending and limit total rows
+        df = df.sort_values('date', ascending=False).head(limit)
+    else:
+        # Get top predictions for the selected date
+        df = df.nlargest(limit, 'prediction')
     
     results = []
     for idx, row in df.iterrows():
