@@ -163,8 +163,9 @@ def main():
     # Add explanation banner
     st.markdown("""
     <div class="info-box">
-    <b>💡 What This Dashboard Shows:</b> The model predicts <b>next month's stock returns</b> using 19 factors. 
-    Higher prediction = higher expected return. Predictions are ranked to select top stocks for portfolio.
+    <b>💡 What This Dashboard Shows:</b> The model predicts <b>monthly stock returns</b> using 19 factors. 
+    Each prediction is for the return DURING that month (e.g., Apr 2026 prediction = return from Apr 1-30, 2026).
+    Higher prediction = higher expected return.
     </div>
     """, unsafe_allow_html=True)
     
@@ -197,7 +198,8 @@ def main():
         st.markdown("### ❓ What is Prediction?")
         st.markdown("""
         <div class="success-box">
-        <b>Prediction</b> = Expected return for next month<br><br>
+        <b>Prediction</b> = Expected return for that month<br><br>
+        • <b>Apr 2026</b> = Return during April 2026<br>
         • <b>Positive</b> = Stock expected to go up<br>
         • <b>Negative</b> = Stock expected to go down<br>
         • <b>Higher value</b> = Better investment<br><br>
@@ -262,12 +264,16 @@ def show_overview(predictions, performance):
         ### 🎯 Understanding Predictions
         
         **What is a "Prediction"?**
-        - The model predicts **next month's stock return** (gain or loss)
-        - Example: Prediction of **0.05** means the model expects the stock to gain **+5%** next month
-        - Example: Prediction of **-0.02** means the model expects the stock to lose **-2%** next month
+        - The model predicts **monthly stock return** (gain or loss during that month)
+        - Example: **Apr 2026 prediction of 0.05** means the model expected the stock to gain **+5%** during April 2026
+        - Example: **May 2026 prediction of -0.02** means the model expects the stock to lose **-2%** during May 2026
+        
+        **Important: Predictions are for THAT month, not the next month**
+        - Apr 2026 prediction = Return from April 1-30, 2026
+        - May 2026 prediction = Return from May 1-31, 2026
         
         **How Are Predictions Used?**
-        1. **Rank all 239 stocks** by their predictions
+        1. **Rank all stocks** by their predictions for the upcoming month
         2. **Select top stocks** (highest predictions) for portfolio
         3. **Rebalance monthly** based on new predictions
         
@@ -609,14 +615,27 @@ def show_stock_analysis(predictions):
                     "Expected Return",
                     f"{pred_value:.4f}",
                     delta=f"{pred_color} {pred_pct:+.2f}%",
-                    help="Predicted return for next month"
+                    help="Predicted return for this month"
                 )
+                
+                # Check if this is a future or past prediction
+                latest_date = latest['date']
+                current_date = pd.Timestamp.now()
+                is_future = latest_date > current_date
+                
+                # Different interpretation for past vs future
+                if is_future:
+                    time_text = "next month"
+                    verb = "expects"
+                else:
+                    time_text = f"in {latest_date.strftime('%B %Y')}"
+                    verb = "predicted"
                 
                 st.markdown(f"""
                 <div class="{'success-box' if pred_value > 0 else 'warning-box'}">
                 <b>Interpretation:</b><br>
-                Model expects this stock to {'gain' if pred_value > 0 else 'lose'} 
-                <b>{abs(pred_pct):.2f}%</b> next month
+                Model {verb} this stock to {'gain' if pred_value > 0 else 'lose'} 
+                <b>{abs(pred_pct):.2f}%</b> {time_text}
                 </div>
                 """, unsafe_allow_html=True)
                 
