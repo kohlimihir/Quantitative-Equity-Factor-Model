@@ -329,9 +329,9 @@ Built with:
 ## 📧 Contact
 
 For questions or collaboration:
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your Name](https://linkedin.com/in/yourprofile)
-- Email: your.email@example.com
+- GitHub: [@Mihir Kohli](https://github.com/kohlimihir)
+- LinkedIn: [Mihir Kohli](https://www.linkedin.com/in/mihir-kohli-68b47931a)
+- Email: mihirkohli2112@gmail.com
 
 ---
 
