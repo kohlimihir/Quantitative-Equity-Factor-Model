@@ -184,11 +184,12 @@ def main():
         st.markdown("### 📊 Model Info")
         st.markdown(f"""
         <div class="info-box">
-        <b>Universe:</b> 239 stocks<br>
+        <b>Universe:</b> S&P 500 (dynamic)<br>
         <b>Features:</b> 19 factors<br>
         <b>Model:</b> Ridge + LightGBM<br>
         <b>Rebalance:</b> Monthly<br>
         <b>Prediction:</b> Next month return<br>
+        <b>Bias:</b> Survivorship-free<br>
         <b>API:</b> <code>{API_URL.split('//')[1][:20]}...</code>
         </div>
         """, unsafe_allow_html=True)

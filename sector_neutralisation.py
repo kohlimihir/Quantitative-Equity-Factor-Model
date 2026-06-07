@@ -52,7 +52,7 @@ warnings.filterwarnings("ignore")
 
 from data_loader import FEATURES, TARGET, SECTOR_MAP
 
-TOP_PER_SECTOR      = 4      # 4 × 5 sectors = 20 stocks/month (wider portfolio = less turnover)
+TOP_PER_SECTOR      = 2      # 2 × 11 GICS sectors = 22 stocks/month
 REBAL_THRESHOLD     = 0.25   # challenger must beat holder by 25 rank pct points (higher = less turnover)
 EWM_ALPHA           = 0.70   # weight on current month rank (0.3 on previous, higher = more smoothing)
 HOLD_BONUS_PER_MONTH = 0.03  # +3 rank pct points per month held (capped at 5)
@@ -86,7 +86,7 @@ def add_sector_features(factors_df, sector_map=None):
     momentum and Tech outperforms, Z-scoring neutralises that signal).
 
     Sector diversification is enforced purely by portfolio construction
-    (top-3/sector = 15 stocks), NOT by feature transformation.
+    (top-2/sector across 11 GICS sectors = ~22 stocks), NOT by feature transformation.
     """
     if sector_map is None:
         sector_map = SECTOR_MAP

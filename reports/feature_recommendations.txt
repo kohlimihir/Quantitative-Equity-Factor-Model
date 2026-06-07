@@ -2,47 +2,47 @@
   FEATURE QUALITY RECOMMENDATIONS
 ======================================================================
 
-Generated: 2026-05-23 17:42:16
+Generated: 2026-06-06 19:31:50
 
 
 REMOVE:
 ----------------------------------------------------------------------
-  • Mom_12_1: Low IC (|0.00773| < 0.01)
-  • MaxRet_1M: Low IC (|-0.00192| < 0.01)
-  • VolRatio: Low IC (|0.00098| < 0.01)
-  • PE_TTM: Low IC (|0.00835| < 0.01)
-  • LogMktCap: Negative incremental IC (-0.00139)
-  • Mom_1: Negative incremental IC (-0.00222)
-  • GrossMargin: Negative incremental IC (-0.00356)
-  • PB_ratio: Negative incremental IC (-0.00426)
-  • Trend_MA: Negative incremental IC (-0.00520)
-  • High52W: Negative incremental IC (-0.00635)
-  ... and 6 more
+  • Mom_6_1: Low IC (|0.00940| < 0.01)
+  • Trend_MA: Low IC (|-0.00147| < 0.01)
+  • CashFlowYield: Low IC (|-0.00190| < 0.01)
+  • ROE: Low IC (|-0.00784| < 0.01)
+  • EarnGrowth_YoY: Negative incremental IC (-0.00335)
+  • LogMktCap: Negative incremental IC (-0.00369)
+  • RevGrowth_YoY: Negative incremental IC (-0.00430)
+  • IdioVol: Negative incremental IC (-0.00455)
+  • Beta_12: Negative incremental IC (-0.00455)
+  • High52W: Negative incremental IC (-0.00510)
+  ... and 5 more
 
 
 KEEP:
 ----------------------------------------------------------------------
-  • Beta_12: High composite score (0.766), IC=+0.02691, stability=0.922
-  • Vol_12: High composite score (0.760), IC=+0.01960, stability=0.959
-  • Mom_12_1: High composite score (0.718), IC=+0.00773, stability=0.894
-  • IdioVol: High composite score (0.700), IC=+0.03108, stability=0.989
-  • Mom_6_1: High composite score (0.695), IC=+0.01189, stability=0.775
-  • RevGrowth_YoY: High composite score (0.580), IC=+0.12957, stability=0.491
-  • MaxRet_1M: High composite score (0.572), IC=-0.00192, stability=0.422
-  • Trend_MA: High composite score (0.555), IC=-0.02146, stability=0.861
-  • High52W: High composite score (0.510), IC=-0.03460, stability=0.799
-  • CashFlowYield: High composite score (0.470), IC=+0.01776, stability=0.771
+  • Vol_12: High composite score (1.000), IC=+0.02602, stability=0.954
+  • Mom_12_1: High composite score (0.900), IC=+0.01010, stability=0.898
+  • Mom_6_1: High composite score (0.863), IC=+0.00940, stability=0.779
+  • Trend_MA: High composite score (0.828), IC=-0.00147, stability=0.864
+  • MaxRet_1M: High composite score (0.772), IC=+0.01310, stability=0.372
+  • High52W: High composite score (0.742), IC=-0.01325, stability=0.779
+  • LogMktCap: High composite score (0.722), IC=+0.02193, stability=0.865
+  • EarnGrowth_YoY: High composite score (0.659), IC=+0.01739, stability=0.723
+  • RevGrowth_YoY: High composite score (0.647), IC=+0.01378, stability=0.752
+  • VolRatio: High composite score (0.641), IC=+0.01492, stability=-0.142
 
 
 ENGINEER:
 ----------------------------------------------------------------------
-  • RevGrowth_YoY: N/A
+  • MaxRet_1M: N/A
+  • VolRatio: N/A
   • Mom_1: N/A
 
 
 CORRELATED PAIRS:
 ----------------------------------------------------------------------
-  • N/A: N/A
   • N/A: N/A
   • N/A: N/A
 

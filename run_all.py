@@ -52,7 +52,7 @@ t0 = time.time()
 section("EQUITY FACTOR MODEL — 250 STOCKS, 19 FEATURES")
 print(f"  Config: {args.config}")
 print("  Pipeline: Config → Leakage → Data → Features → Models → Portfolio → OOT → Costs")
-print("  8 groups: Momentum, Risk, Technical, Value, Quality, Growth, Size, Liquidity")
+print("  11 GICS sectors: InfoTech, CommSvcs, Financials, HealthCare, ConsDisc, ConsStap, Energy, Industrials, Materials, Utilities, RealEstate")
 print("  Data cached locally — subsequent runs skip download")
 
 
@@ -137,7 +137,7 @@ else:
 
 
 # ── STEP 2: Data & Features ───────────────────────────────────────────────────
-step(2, "Loading/downloading data and engineering 19 factors")
+step(2, "Building point-in-time universe and engineering 19 factors")
 t = time.time()
 
 from data_loader import (
@@ -146,20 +146,52 @@ from data_loader import (
     SECTOR_MAP, FEATURES, FEATURE_GROUPS, TARGET
 )
 
-prices          = download_price_data()
+# ── Build point-in-time S&P 500 universe (survivorship bias fix) ──────────
+try:
+    from universe_builder import UniverseBuilder
+    ub = UniverseBuilder(verbose=True)
+    ub.build(start_year=2018)
+    ub.get_universe_summary()
+
+    # Get full historical ticker list (union of all months) for data download
+    historical_tickers = ub.get_all_historical_tickers()
+    # Get full sector map covering all historical tickers
+    dynamic_sector_map = ub.get_full_sector_map()
+    # Get monthly universe for point-in-time filtering
+    monthly_universe = ub.monthly_universe
+
+    print(f"\n  ✓ Dynamic universe: {len(historical_tickers)} unique tickers")
+    print(f"  ✓ Monthly universes: {len(monthly_universe)} months")
+    print(f"  ✓ Survivorship bias: ELIMINATED")
+
+    USE_DYNAMIC_UNIVERSE = True
+except Exception as e:
+    print(f"\n  ⚠ Universe builder failed: {e}")
+    print(f"  ⚠ Falling back to static 250-stock universe (survivorship bias present)")
+    historical_tickers = None
+    dynamic_sector_map = SECTOR_MAP
+    monthly_universe = None
+    USE_DYNAMIC_UNIVERSE = False
+
+# ── Download price and fundamental data ───────────────────────────────────
+prices          = download_price_data(tickers=historical_tickers)
 monthly_returns = compute_monthly_returns(prices)
 monthly_returns.to_csv("data/monthly_returns.csv")
 
-fund_df    = download_fundamentals()
-factors_df = compute_factors(monthly_returns, prices, fund_df, SECTOR_MAP)
+fund_tickers = historical_tickers if USE_DYNAMIC_UNIVERSE else None
+fund_df    = download_fundamentals(tickers=fund_tickers)
+factors_df = compute_factors(monthly_returns, prices, fund_df,
+                             dynamic_sector_map, monthly_universe)
 factors_df.to_csv("data/factor_features.csv", index=False)
 
 corr_matrix = check_feature_correlation(factors_df)
 
 done("data_loader", time.time() - t)
+universe_label = "DYNAMIC (point-in-time)" if USE_DYNAMIC_UNIVERSE else "STATIC (fallback)"
 print(f"\n  Universe : {factors_df['ticker'].nunique()} stocks, "
-      f"{factors_df['date'].nunique()} months")
+      f"{factors_df['date'].nunique()} months [{universe_label}]")
 print(f"  Features : {len(FEATURES)} ({list(FEATURE_GROUPS.keys())})")
+
 
 
 # ── STEP 1b: Complete Leakage Detection (after data loaded) ───────────────────
@@ -577,7 +609,7 @@ from sector_neutralisation import (
     HOLD_BONUS_PER_MONTH, HOLD_BONUS_CAP,
 )
 
-factors_df_sector, z_features = add_sector_features(factors_df, SECTOR_MAP)
+factors_df_sector, z_features = add_sector_features(factors_df, dynamic_sector_map)
 sector_results = walk_forward_sector_neutral(factors_df_sector, z_features)
 sector_results.to_csv("data/sector_predictions.csv", index=False)
 
@@ -829,9 +861,11 @@ print(f"  Universe       : {factors_df['ticker'].nunique()} stocks | "
       f"{factors_df['date'].nunique()} months")
 print(f"  Features       : {len(FEATURES)} across "
       f"{len(FEATURE_GROUPS)} groups")
+n_sectors = factors_df['sector'].nunique()
 print(f"  Portfolio      : top-{TOP_PER_SECTOR}/sector = "
-      f"{TOP_PER_SECTOR*5} stocks | "
-      f"EWM α={EWM_ALPHA} | threshold={REBAL_THRESHOLD}")
+      f"{TOP_PER_SECTOR*n_sectors} stocks | "
+      f"EWM α={EWM_ALPHA} | threshold={REBAL_THRESHOLD} | "
+      f"{n_sectors} GICS sectors")
 print(f"  Turnover       : {turnover_df['turnover'].mean():.1%}/month "
       f"({turnover_df['turnover'].mean()*12:.0%}/year)")
 

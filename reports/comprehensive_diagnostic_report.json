@@ -1,48 +1,48 @@
 {
   "pipeline_info": {
-    "configuration": "optimized_low_turnover",
-    "total_runtime_minutes": 12.308789849281311,
-    "timestamp": "2026-05-23 17:43:36",
-    "universe_size": 239,
+    "configuration": "baseline",
+    "total_runtime_minutes": 5.675032607714335,
+    "timestamp": "2026-06-06 19:33:04",
+    "universe_size": 543,
     "time_periods": 71,
     "features_count": 19
   },
   "leakage_detection": {
     "enabled": true,
-    "all_checks_passed": true
+    "all_checks_passed": false
   },
   "feature_analysis": {
     "enabled": true,
     "top_features": [
-      "Beta_12",
       "Vol_12",
       "Mom_12_1",
-      "IdioVol",
-      "Mom_6_1"
+      "Mom_6_1",
+      "Trend_MA",
+      "MaxRet_1M"
     ],
     "bottom_features": [
-      "LogMktCap",
-      "ROE",
+      "PB_ratio",
       "PE_TTM",
       "GrossMargin",
-      "PB_ratio"
+      "Beta_12",
+      "IdioVol"
     ]
   },
   "model_performance": {
     "ridge": {
-      "mean_ic": 0.021045677534813016,
-      "ic_ir": 0.11730913509511505,
-      "sharpe": 1.052893105887079
+      "mean_ic": 0.0036763720371271883,
+      "ic_ir": 0.022631042111680957,
+      "sharpe": 0.5958109960190247
     },
     "lightgbm": {
-      "mean_ic": 0.022738001926167782,
-      "ic_ir": 0.1705884985292567,
-      "sharpe": 1.2903383767370942
+      "mean_ic": 0.009034272925357132,
+      "ic_ir": 0.09250236943659289,
+      "sharpe": 0.95364212610136
     },
     "sector_neutral": {
-      "mean_ic": 0.018751481607045484,
-      "ic_ir": 0.15858433365731556,
-      "sharpe": 1.1317874676379387
+      "mean_ic": 0.004269995135152148,
+      "ic_ir": 0.04676691733972165,
+      "sharpe": 0.36763943908166385
     }
   },
   "hyperparameter_tuning": {
@@ -51,27 +51,27 @@
     "lgbm_best_score": null
   },
   "ensemble": {
-    "enabled": true,
-    "mean_ic": 0.035182333848464045,
-    "ic_ir": 0.2329433039313998
+    "enabled": false,
+    "mean_ic": null,
+    "ic_ir": null
   },
   "sector_specific": {
     "enabled": false,
     "overall_ic": null
   },
   "turnover": {
-    "mean_monthly": 0.23695652173913045,
-    "annual": 2.8434782608695652,
-    "target": 0.15
+    "mean_monthly": 0.2529644268774704,
+    "annual": 3.0355731225296445,
+    "target": 0.25
   },
   "oot_validation": {
-    "mean_ic": 0.031097248791276698,
-    "ic_ir": 0.21687571276578374,
-    "sharpe": 1.3034797351517216,
-    "months": 16
+    "mean_ic": 0.013940023339891245,
+    "ic_ir": 0.24191411906633445,
+    "sharpe": 0.8978909153013738,
+    "months": 17
   },
   "net_performance": {
-    "sharpe_10bps": 1.121389897597415,
-    "cumulative_return": 2.2228437463548545
+    "sharpe_10bps": 0.35223673063433647,
+    "cumulative_return": 0.4452044309667129
   }
 }

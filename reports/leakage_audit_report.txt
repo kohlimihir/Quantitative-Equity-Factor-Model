@@ -2,17 +2,22 @@
   COMPREHENSIVE DATA LEAKAGE AUDIT REPORT
 ======================================================================
 
-Generated: 2026-05-23 17:42:04
-Configuration: optimized_low_turnover
+Generated: 2026-06-06 19:31:42
+Configuration: baseline
 
 TEMPORAL BOUNDARY VALIDATION:
-  Status: ✓ PASSED
+  Status: ❌ FAILED
   Total months: 71
+  Violations: 2
+    - Feature IdioVol has no valid data
+    - Feature Beta_12 has no valid data
 
 FUNDAMENTAL LAG VALIDATION:
-  Status: ✓ PASSED
+  Status: ❌ FAILED
   Lag days enforced: 45
+  Violations: 1
+    - {'ticker': 'AAP', 'column': 'NetIncome', 'future_value_used': 24000000.0, 'future_date': Timestamp('2026-04-30 00:00:00'), 'cutoff_date': Timestamp('2025-05-16 00:00:00')}
 
 ======================================================================
-OVERALL STATUS: ✓ ALL CHECKS PASSED
+OVERALL STATUS: ❌ SOME CHECKS FAILED
 ======================================================================

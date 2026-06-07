@@ -1,9 +1,18 @@
 """
-data_loader.py  —  250-Stock Universe, 19 Features, Full Caching
-================================================================
-Downloads price + fundamental data for 250 S&P 500 stocks (50/sector),
-engineers 19 monthly factors across 8 groups, and caches all raw data
-so subsequent runs skip the download entirely.
+data_loader.py  —  Dynamic S&P 500 Universe, 19 Features, Full Caching
+=====================================================================
+Downloads price + fundamental data for the POINT-IN-TIME S&P 500 universe
+(reconstructed via universe_builder.py), engineers 19 monthly factors
+across 8 groups, and caches all raw data.
+
+SURVIVORSHIP BIAS FIX:
+  The stock universe is NO LONGER a static hardcoded list. Instead,
+  universe_builder.py scrapes Wikipedia's S&P 500 historical changes
+  to reconstruct which stocks were actually in the index at each month.
+  This ensures delisted, bankrupt, and removed companies are included
+  during the periods they were in the index, eliminating survivorship bias.
+
+  The original SECTOR_MAP is kept as a fallback for backwards compatibility.
 
 TARGET VARIABLE:
   Next_Month_Return = next month's actual price return (e.g. 0.08 = 8%).
@@ -41,6 +50,7 @@ CACHING:
   data/daily_prices.parquet   — raw daily adjusted closes
   data/fundamentals.parquet   — quarterly fundamental data
   data/monthly_returns.csv    — monthly return matrix
+  data/sp500_universe.json    — point-in-time universe cache
   Re-run loads from cache (< 24h old). Delete cache files to refresh.
 """
 
@@ -53,26 +63,27 @@ import os
 from datetime import datetime, timedelta
 from scipy.stats import skew as scipy_skew
 
-# ── 250-stock universe (50 per sector) ────────────────────────────────────────
+# ── Static 250-stock universe (FALLBACK — see universe_builder.py for dynamic) ──
+# Uses proper 11 GICS sector classifications
 SECTOR_MAP = {
-    # Technology (50)
-    "AAPL":"Technology","MSFT":"Technology","NVDA":"Technology",
-    "GOOGL":"Technology","META":"Technology","AMD":"Technology",
-    "INTC":"Technology","QCOM":"Technology","TXN":"Technology",
-    "AVGO":"Technology","AMAT":"Technology","MU":"Technology",
-    "LRCX":"Technology","KLAC":"Technology","NOW":"Technology",
-    "CRM":"Technology","ADBE":"Technology","ORCL":"Technology",
-    "INTU":"Technology","PANW":"Technology","NET":"Technology",
-    "CRWD":"Technology","FTNT":"Technology","CDNS":"Technology",
-    "SNPS":"Technology","VRSN":"Technology","HPQ":"Technology",
-    "IBM":"Technology","CSCO":"Technology","ACN":"Technology",
-    "DELL":"Technology","ANET":"Technology","MRVL":"Technology",
-    "NXPI":"Technology","ADI":"Technology","MCHP":"Technology",
-    "MPWR":"Technology","KEYS":"Technology","TER":"Technology",
-    "ENTG":"Technology","SWKS":"Technology","QRVO":"Technology",
-    "WDC":"Technology","STX":"Technology","ONTO":"Technology",
-    "IPGP":"Technology","COHU":"Technology","FORM":"Technology",
-    "CGNX":"Technology","MKSI":"Technology",
+    # Information Technology (50)
+    "AAPL":"Information Technology","MSFT":"Information Technology","NVDA":"Information Technology",
+    "GOOGL":"Communication Services","META":"Communication Services","AMD":"Information Technology",
+    "INTC":"Information Technology","QCOM":"Information Technology","TXN":"Information Technology",
+    "AVGO":"Information Technology","AMAT":"Information Technology","MU":"Information Technology",
+    "LRCX":"Information Technology","KLAC":"Information Technology","NOW":"Information Technology",
+    "CRM":"Information Technology","ADBE":"Information Technology","ORCL":"Information Technology",
+    "INTU":"Information Technology","PANW":"Information Technology","NET":"Information Technology",
+    "CRWD":"Information Technology","FTNT":"Information Technology","CDNS":"Information Technology",
+    "SNPS":"Information Technology","VRSN":"Information Technology","HPQ":"Information Technology",
+    "IBM":"Information Technology","CSCO":"Information Technology","ACN":"Information Technology",
+    "DELL":"Information Technology","ANET":"Information Technology","MRVL":"Information Technology",
+    "NXPI":"Information Technology","ADI":"Information Technology","MCHP":"Information Technology",
+    "MPWR":"Information Technology","KEYS":"Information Technology","TER":"Information Technology",
+    "ENTG":"Information Technology","SWKS":"Information Technology","QRVO":"Information Technology",
+    "WDC":"Information Technology","STX":"Information Technology","ONTO":"Information Technology",
+    "IPGP":"Information Technology","COHU":"Information Technology","FORM":"Information Technology",
+    "CGNX":"Information Technology","MKSI":"Information Technology",
     # Financials (50)
     "JPM":"Financials","BAC":"Financials","GS":"Financials",
     "MS":"Financials","BLK":"Financials","WFC":"Financials",
@@ -91,59 +102,67 @@ SECTOR_MAP = {
     "SEIC":"Financials","FDS":"Financials","MSCI":"Financials",
     "FNF":"Financials","WTW":"Financials","GL":"Financials",
     "UNM":"Financials","AMTD":"Financials",
-    # Healthcare (50)
-    "JNJ":"Healthcare","UNH":"Healthcare","PFE":"Healthcare",
-    "ABBV":"Healthcare","LLY":"Healthcare","MRK":"Healthcare",
-    "BMY":"Healthcare","AMGN":"Healthcare","GILD":"Healthcare",
-    "BIIB":"Healthcare","VRTX":"Healthcare","REGN":"Healthcare",
-    "CVS":"Healthcare","CI":"Healthcare","HUM":"Healthcare",
-    "MDT":"Healthcare","SYK":"Healthcare","BSX":"Healthcare",
-    "ABT":"Healthcare","TMO":"Healthcare","DHR":"Healthcare",
-    "ISRG":"Healthcare","EW":"Healthcare","ZBH":"Healthcare",
-    "BAX":"Healthcare","BDX":"Healthcare","IQV":"Healthcare",
-    "A":"Healthcare","DGX":"Healthcare","RMD":"Healthcare",
-    "HOLX":"Healthcare","IDXX":"Healthcare","WAT":"Healthcare",
-    "MTD":"Healthcare","PODD":"Healthcare","DXCM":"Healthcare",
-    "ALGN":"Healthcare","MASI":"Healthcare","NTRA":"Healthcare",
-    "INSP":"Healthcare","ACAD":"Healthcare","RARE":"Healthcare",
-    "FOLD":"Healthcare","ALKS":"Healthcare","NBIX":"Healthcare",
-    "RVNC":"Healthcare","PRCT":"Healthcare","AXNX":"Healthcare",
-    "NVCR":"Healthcare","ROIV":"Healthcare",
-    # Consumer (50)
-    "AMZN":"Consumer","WMT":"Consumer","HD":"Consumer",
-    "COST":"Consumer","TGT":"Consumer","LOW":"Consumer",
-    "SBUX":"Consumer","MCD":"Consumer","NKE":"Consumer",
-    "LULU":"Consumer","TJX":"Consumer","ROST":"Consumer",
-    "DG":"Consumer","DLTR":"Consumer","KR":"Consumer",
-    "YUM":"Consumer","CMG":"Consumer","DRI":"Consumer",
-    "ORLY":"Consumer","AZO":"Consumer","EBAY":"Consumer",
-    "BKNG":"Consumer","MAR":"Consumer","HLT":"Consumer",
-    "MGM":"Consumer","F":"Consumer","GM":"Consumer",
-    "TSLA":"Consumer","BBY":"Consumer","NFLX":"Consumer",
-    "DIS":"Consumer","CMCSA":"Consumer","LVS":"Consumer",
-    "WYNN":"Consumer","RCL":"Consumer","CCL":"Consumer",
-    "NCLH":"Consumer","H":"Consumer","DKNG":"Consumer",
-    "POOL":"Consumer","GRMN":"Consumer","SIRI":"Consumer",
-    "WBD":"Consumer","PARA":"Consumer","FOX":"Consumer",
-    "CZR":"Consumer","PENN":"Consumer","CHDN":"Consumer",
-    "ABNB":"Consumer","IHG":"Consumer",
-    # Energy + Industrials (50)
+    # Health Care (50)
+    "JNJ":"Health Care","UNH":"Health Care","PFE":"Health Care",
+    "ABBV":"Health Care","LLY":"Health Care","MRK":"Health Care",
+    "BMY":"Health Care","AMGN":"Health Care","GILD":"Health Care",
+    "BIIB":"Health Care","VRTX":"Health Care","REGN":"Health Care",
+    "CVS":"Health Care","CI":"Health Care","HUM":"Health Care",
+    "MDT":"Health Care","SYK":"Health Care","BSX":"Health Care",
+    "ABT":"Health Care","TMO":"Health Care","DHR":"Health Care",
+    "ISRG":"Health Care","EW":"Health Care","ZBH":"Health Care",
+    "BAX":"Health Care","BDX":"Health Care","IQV":"Health Care",
+    "A":"Health Care","DGX":"Health Care","RMD":"Health Care",
+    "HOLX":"Health Care","IDXX":"Health Care","WAT":"Health Care",
+    "MTD":"Health Care","PODD":"Health Care","DXCM":"Health Care",
+    "ALGN":"Health Care","MASI":"Health Care","NTRA":"Health Care",
+    "INSP":"Health Care","ACAD":"Health Care","RARE":"Health Care",
+    "FOLD":"Health Care","ALKS":"Health Care","NBIX":"Health Care",
+    "RVNC":"Health Care","PRCT":"Health Care","AXNX":"Health Care",
+    "NVCR":"Health Care","ROIV":"Health Care",
+    # Consumer Discretionary (30)
+    "AMZN":"Consumer Discretionary","HD":"Consumer Discretionary",
+    "TGT":"Consumer Discretionary","LOW":"Consumer Discretionary",
+    "SBUX":"Consumer Discretionary","MCD":"Consumer Discretionary","NKE":"Consumer Discretionary",
+    "LULU":"Consumer Discretionary","TJX":"Consumer Discretionary","ROST":"Consumer Discretionary",
+    "DG":"Consumer Discretionary","DLTR":"Consumer Discretionary",
+    "YUM":"Consumer Discretionary","CMG":"Consumer Discretionary","DRI":"Consumer Discretionary",
+    "ORLY":"Consumer Discretionary","AZO":"Consumer Discretionary","EBAY":"Consumer Discretionary",
+    "BKNG":"Consumer Discretionary","MAR":"Consumer Discretionary","HLT":"Consumer Discretionary",
+    "MGM":"Consumer Discretionary","F":"Consumer Discretionary","GM":"Consumer Discretionary",
+    "TSLA":"Consumer Discretionary","BBY":"Consumer Discretionary",
+    "LVS":"Consumer Discretionary","WYNN":"Consumer Discretionary",
+    "RCL":"Consumer Discretionary","CCL":"Consumer Discretionary",
+    # Consumer Staples (10)
+    "WMT":"Consumer Staples","COST":"Consumer Staples","KR":"Consumer Staples",
+    "NCLH":"Consumer Discretionary","H":"Consumer Discretionary","DKNG":"Consumer Discretionary",
+    "POOL":"Consumer Discretionary","GRMN":"Consumer Discretionary",
+    "ABNB":"Consumer Discretionary","IHG":"Consumer Discretionary",
+    # Communication Services (10)
+    "NFLX":"Communication Services","DIS":"Communication Services",
+    "CMCSA":"Communication Services","SIRI":"Communication Services",
+    "WBD":"Communication Services","PARA":"Communication Services","FOX":"Communication Services",
+    "CZR":"Consumer Discretionary","PENN":"Consumer Discretionary","CHDN":"Consumer Discretionary",
+    # Energy (12)
     "XOM":"Energy","CVX":"Energy","COP":"Energy",
     "EOG":"Energy","SLB":"Energy","HAL":"Energy",
     "MPC":"Energy","VLO":"Energy","PSX":"Energy",
     "OXY":"Energy","DVN":"Energy","APA":"Energy",
-    "BA":"Energy","LMT":"Energy","RTX":"Energy",
-    "NOC":"Energy","GD":"Energy","GE":"Energy",
-    "HON":"Energy","MMM":"Energy","CAT":"Energy",
-    "DE":"Energy","UNP":"Energy","UPS":"Energy",
-    "FDX":"Energy","EMR":"Energy","ETN":"Energy",
-    "PH":"Energy","ROK":"Energy","AME":"Energy",
-    "VRSK":"Energy","IDEX":"Energy","XYL":"Energy",
-    "ROP":"Energy","HUBB":"Energy","FTV":"Energy",
-    "GNRC":"Energy","FSLR":"Energy","ENPH":"Energy",
+    # Industrials (25)
+    "BA":"Industrials","LMT":"Industrials","RTX":"Industrials",
+    "NOC":"Industrials","GD":"Industrials","GE":"Industrials",
+    "HON":"Industrials","MMM":"Industrials","CAT":"Industrials",
+    "DE":"Industrials","UNP":"Industrials","UPS":"Industrials",
+    "FDX":"Industrials","EMR":"Industrials","ETN":"Industrials",
+    "PH":"Industrials","ROK":"Industrials","AME":"Industrials",
+    "VRSK":"Industrials","IDEX":"Industrials","XYL":"Industrials",
+    "ROP":"Industrials","HUBB":"Industrials","FTV":"Industrials",
+    "GNRC":"Industrials",
+    # Utilities + Materials + Real Estate
+    "FSLR":"Information Technology","ENPH":"Information Technology",
     "BKR":"Energy","MRO":"Energy","CTRA":"Energy",
     "WMB":"Energy","HES":"Energy","SM":"Energy",
-    "MTDR":"Energy","BE":"Energy","PLUG":"Energy",
+    "MTDR":"Energy","BE":"Industrials","PLUG":"Industrials",
     "PR":"Energy","CLR":"Energy",
 }
 
@@ -404,15 +423,22 @@ def _fund_val(fund_df, ticker, feature_date, col, lag_days=45):
     t_data = fund_df[fund_df["ticker"] == ticker]
     if t_data.empty: return np.nan
     cutoff  = pd.Timestamp(feature_date) - pd.Timedelta(days=lag_days)
-    valid   = t_data[t_data.index <= cutoff]
+    valid   = t_data[t_data.index < cutoff]  # strict < to prevent leakage
     if valid.empty or col not in valid.columns: return np.nan
     val = valid[col].dropna()
     return float(val.iloc[-1]) if not val.empty else np.nan
 
 
-def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
+def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None,
+                    monthly_universe=None):
     """
     Computes 17 monthly factors per stock using strictly past data.
+
+    SURVIVORSHIP BIAS FIX:
+      If monthly_universe is provided (dict {"YYYY-MM": [tickers]}),
+      each month only processes stocks that were actually in the S&P 500
+      at that time. This ensures delisted/removed stocks are included
+      during their active periods and excluded after removal.
 
     LEAKAGE AUDIT:
       Price features at month i: windows [i-12..i-1], [i-6..i-1], etc.
@@ -421,8 +447,10 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
       Target: ret.iloc[i+1] — one full month ahead of all features.
     """
     if sector_map is None: sector_map = SECTOR_MAP
-    stock_cols  = [c for c in monthly_returns.columns
-                   if c != BENCHMARK and c in sector_map]
+    # All available stock columns (superset — filtered per month below)
+    all_stock_cols = [c for c in monthly_returns.columns
+                      if c != BENCHMARK and c in sector_map]
+    stock_cols  = all_stock_cols  # default: use all
     spy_monthly = monthly_returns.get(BENCHMARK, pd.Series(dtype=float))
     spy_daily   = prices.get(BENCHMARK) if prices is not None else None
     month_ends  = monthly_returns.index
@@ -434,14 +462,30 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
         daily_end    = month_ends[i - 1]
 
         daily_start_252 = None
-        if spy_daily is not None and daily_end in prices.index:
-            loc = prices.index.get_loc(daily_end)
-            daily_start_252 = prices.index[max(0, loc - 252)]
+        if spy_daily is not None and prices is not None:
+            # Use asof() to find nearest trading day <= daily_end
+            # (month-end dates like 2024-03-31 may not be trading days)
+            nearest_daily_end = prices.index.asof(daily_end)
+            if pd.notna(nearest_daily_end):
+                loc = prices.index.get_loc(nearest_daily_end)
+                daily_start_252 = prices.index[max(0, loc - 252)]
+            else:
+                nearest_daily_end = daily_end  # fallback
 
         prev_month_start = month_ends[i - 2] if i >= 2 else prices.index[0]
         vol_start_3m     = month_ends[i - 4] if i >= 4 else prices.index[0]
 
-        for ticker in stock_cols:
+        # ── Point-in-time universe filtering ──────────────────────────
+        # If monthly_universe provided, only process stocks that were
+        # actually in the S&P 500 during this month (survivorship bias fix)
+        if monthly_universe is not None:
+            month_key = current_date.strftime("%Y-%m")
+            pit_tickers = set(monthly_universe.get(month_key, []))
+            stock_cols_month = [c for c in all_stock_cols if c in pit_tickers]
+        else:
+            stock_cols_month = stock_cols
+
+        for ticker in stock_cols_month:
             ret   = monthly_returns[ticker]
             price = prices.get(ticker) if prices is not None else None
 
@@ -466,22 +510,28 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                     cov     = np.cov(win12.values, spy_win.values)
                     Beta_12 = float(cov[0,1] / (cov[1,1] + 1e-10))
 
-            if price is not None and spy_daily is not None and daily_start_252 is not None:
+            # IdioVol from daily data (annualised residual volatility)
+            if price is not None and spy_daily is not None:
                 try:
-                    pd_ = price.loc[daily_start_252:daily_end].pct_change().dropna()
-                    sd_ = spy_daily.loc[daily_start_252:daily_end].pct_change().dropna()
-                    cm  = pd_.index.intersection(sd_.index)
-                    if len(cm) >= 60:
-                        pv = pd_.loc[cm].values; sv = sd_.loc[cm].values
-                        b  = np.cov(pv,sv)[0,1]/(np.var(sv)+1e-10)
-                        IdioVol = float((pv - b*sv).std() * np.sqrt(252))
+                    # Use tail-based slicing for robustness
+                    p_slice = price.loc[:daily_end].dropna()
+                    s_slice = spy_daily.loc[:daily_end].dropna()
+                    if len(p_slice) >= 63 and len(s_slice) >= 63:
+                        p_daily = p_slice.tail(252).pct_change().dropna()
+                        s_daily = s_slice.tail(252).pct_change().dropna()
+                        cm = p_daily.index.intersection(s_daily.index)
+                        if len(cm) >= 60:
+                            pv = p_daily.loc[cm].values; sv = s_daily.loc[cm].values
+                            b  = np.cov(pv,sv)[0,1]/(np.var(sv)+1e-10)
+                            IdioVol = float((pv - b*sv).std() * np.sqrt(252))
                 except Exception: pass
 
             # G3 Technical
             High52W = np.nan; Trend_MA = np.nan; MaxRet_1M = np.nan
-            if price is not None and daily_start_252 is not None:
+            if price is not None:
                 try:
-                    py = price.loc[daily_start_252:daily_end]
+                    # Use tail-based slicing — robust to missing daily_start_252
+                    py = price.loc[:daily_end].dropna().tail(252)
                     if len(py) >= 50 and py.max() > 0:
                         High52W  = float(py.iloc[-1] / py.max())
                         Trend_MA = float(py.iloc[-1] / py.mean())
@@ -492,31 +542,47 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                     if len(pm) >= 5: MaxRet_1M = float(pm.max())
                 except Exception: pass
 
+            # ── Pre-filter fundamental data for this ticker (once per ticker) ──
+            td = None; cut = None; pr = np.nan; sh_val = np.nan
+            if fund_df is not None:
+                td = fund_df[fund_df["ticker"] == ticker]
+                cut = pd.Timestamp(current_date) - pd.Timedelta(days=45)
+                vq = td[td.index < cut].sort_index()  # strict < for leakage prevention
+            if price is not None:
+                p_end = price.loc[:daily_end].dropna()
+                if len(p_end) > 0:
+                    pr = float(p_end.iloc[-1])
+
             # G4 Value (45-day lagged)
             PB_ratio = np.nan; PE_TTM = np.nan; EV_EBITDA = np.nan
-            if fund_df is not None and price is not None:
+            if td is not None and len(vq) > 0 and not np.isnan(pr):
                 try:
-                    eq  = _fund_val(fund_df, ticker, current_date, "TotalEquity")
-                    sh  = _fund_val(fund_df, ticker, current_date, "Shares")
-                    pr  = float(price.loc[:daily_end].iloc[-1]) \
-                          if len(price.loc[:daily_end]) > 0 else np.nan
-                    if not any(np.isnan([eq,sh,pr])) and sh>0 and eq/sh>0:
-                        PB_ratio = float(pr / (eq/sh))
-                    td   = fund_df[fund_df["ticker"]==ticker]
-                    cut  = pd.Timestamp(current_date) - pd.Timedelta(days=45)
-                    vq   = td[td.index<=cut]["NetIncome"].dropna()
-                    if len(vq)>=4 and not np.isnan(sh) and sh>0 and not np.isnan(pr):
-                        eps  = float(vq.iloc[-4:].sum()) / sh
+                    # Get latest values from pre-filtered data
+                    eq_s = vq["TotalEquity"].dropna()
+                    sh_s = vq["Shares"].dropna()
+                    eq = float(eq_s.iloc[-1]) if len(eq_s) > 0 else np.nan
+                    sh_val = float(sh_s.iloc[-1]) if len(sh_s) > 0 else np.nan
+
+                    if not np.isnan(eq) and not np.isnan(sh_val) and sh_val > 0 and eq/sh_val > 0:
+                        PB_ratio = float(pr / (eq / sh_val))
+
+                    # PE_TTM — use available quarters (1-4)
+                    ni_q = vq["NetIncome"].dropna()
+                    if len(ni_q) >= 1 and not np.isnan(sh_val) and sh_val > 0:
+                        n_q = min(4, len(ni_q))
+                        ttm_ni = float(ni_q.iloc[-n_q:].sum()) * (4 / n_q)  # annualise
+                        eps = ttm_ni / sh_val
                         if eps > 0: PE_TTM = float(pr / eps)
-                    # EV/EBITDA — enterprise value / trailing EBITDA
-                    ebitda_q = td[td.index<=cut]["EBITDA"].dropna()
-                    debt_v   = _fund_val(fund_df, ticker, current_date, "TotalDebt")
-                    if (len(ebitda_q) >= 4 and not np.isnan(sh)
-                            and sh > 0 and not np.isnan(pr)):
-                        ttm_ebitda = float(ebitda_q.iloc[-4:].sum())
-                        mkt_cap    = pr * sh
-                        net_debt   = (debt_v if not np.isnan(debt_v) else 0)
-                        ev         = mkt_cap + net_debt
+
+                    # EV/EBITDA
+                    ebitda_q = vq["EBITDA"].dropna()
+                    debt_s = vq["TotalDebt"].dropna()
+                    debt_v = float(debt_s.iloc[-1]) if len(debt_s) > 0 else 0.0
+                    if len(ebitda_q) >= 1 and not np.isnan(sh_val) and sh_val > 0:
+                        n_q = min(4, len(ebitda_q))
+                        ttm_ebitda = float(ebitda_q.iloc[-n_q:].sum()) * (4 / n_q)
+                        mkt_cap = pr * sh_val
+                        ev = mkt_cap + debt_v
                         if ttm_ebitda > 0:
                             EV_EBITDA = float(ev / ttm_ebitda)
                 except Exception: pass
@@ -524,57 +590,57 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
             # G5 Quality (45-day lagged)
             ROE = np.nan; GrossMargin = np.nan
             CurrentRatio = np.nan; CashFlowYield = np.nan
-            if fund_df is not None:
+            if td is not None and len(vq) > 0:
                 try:
-                    ni = _fund_val(fund_df, ticker, current_date, "NetIncome")
-                    eq = _fund_val(fund_df, ticker, current_date, "TotalEquity")
-                    rv = _fund_val(fund_df, ticker, current_date, "Revenue")
-                    gp = _fund_val(fund_df, ticker, current_date, "GrossProfit")
-                    if not np.isnan(ni) and not np.isnan(eq) and eq!=0:
-                        ROE = float(ni/eq)
-                    if not np.isnan(gp) and not np.isnan(rv) and rv!=0:
-                        GrossMargin = float(gp/rv)
-                    # Current Ratio = Current Assets / Current Liabilities
-                    ca = _fund_val(fund_df, ticker, current_date, "CurrentAssets")
-                    cl = _fund_val(fund_df, ticker, current_date, "CurrentLiabilities")
+                    ni_s = vq["NetIncome"].dropna()
+                    eq_s = vq["TotalEquity"].dropna()
+                    rv_s = vq["Revenue"].dropna()
+                    gp_s = vq["GrossProfit"].dropna()
+                    ni = float(ni_s.iloc[-1]) if len(ni_s) > 0 else np.nan
+                    eq = float(eq_s.iloc[-1]) if len(eq_s) > 0 else np.nan
+                    rv = float(rv_s.iloc[-1]) if len(rv_s) > 0 else np.nan
+                    gp = float(gp_s.iloc[-1]) if len(gp_s) > 0 else np.nan
+
+                    if not np.isnan(ni) and not np.isnan(eq) and eq != 0:
+                        ROE = float(ni / eq)
+                    if not np.isnan(gp) and not np.isnan(rv) and rv != 0:
+                        GrossMargin = float(gp / rv)
+
+                    ca_s = vq["CurrentAssets"].dropna()
+                    cl_s = vq["CurrentLiabilities"].dropna()
+                    ca = float(ca_s.iloc[-1]) if len(ca_s) > 0 else np.nan
+                    cl = float(cl_s.iloc[-1]) if len(cl_s) > 0 else np.nan
                     if not np.isnan(ca) and not np.isnan(cl) and cl > 0:
                         CurrentRatio = float(ca / cl)
-                    # CashFlow Yield = Operating Cash Flow / Market Cap
-                    ocf = _fund_val(fund_df, ticker, current_date, "OperatingCashFlow")
-                    if (not np.isnan(ocf) and price is not None
-                            and not np.isnan(sh) and sh > 0):
-                        pr_v = float(price.loc[:daily_end].iloc[-1]) \
-                               if len(price.loc[:daily_end]) > 0 else np.nan
-                        if not np.isnan(pr_v) and pr_v > 0:
-                            CashFlowYield = float(ocf / (pr_v * sh))
+
+                    ocf_s = vq["OperatingCashFlow"].dropna()
+                    ocf = float(ocf_s.iloc[-1]) if len(ocf_s) > 0 else np.nan
+                    if not np.isnan(ocf) and not np.isnan(pr) and not np.isnan(sh_val) and sh_val > 0 and pr > 0:
+                        CashFlowYield = float(ocf / (pr * sh_val))
                 except Exception: pass
 
-            # G6 Growth (45-day lagged)
+            # G6 Growth (45-day lagged) — relaxed to 2 quarters for coverage
             RevGrowth_YoY = np.nan; EarnGrowth_YoY = np.nan
-            if fund_df is not None:
+            if td is not None and len(vq) >= 2:
                 try:
-                    td  = fund_df[fund_df["ticker"]==ticker]
-                    cut = pd.Timestamp(current_date) - pd.Timedelta(days=45)
-                    vq  = td[td.index<=cut].sort_index()
-                    if len(vq) >= 5:
-                        rn = vq["Revenue"].dropna()
-                        nn = vq["NetIncome"].dropna()
-                        if len(rn)>=5 and rn.iloc[-5]!=0:
-                            RevGrowth_YoY  = float((rn.iloc[-1]-rn.iloc[-5])/abs(rn.iloc[-5]))
-                        if len(nn)>=5 and nn.iloc[-5]!=0:
-                            EarnGrowth_YoY = float((nn.iloc[-1]-nn.iloc[-5])/abs(nn.iloc[-5]))
+                    rn = vq["Revenue"].dropna()
+                    nn = vq["NetIncome"].dropna()
+                    # YoY: compare latest to 4 quarters ago (or earliest available)
+                    if len(rn) >= 5 and rn.iloc[-5] != 0:
+                        RevGrowth_YoY = float((rn.iloc[-1] - rn.iloc[-5]) / abs(rn.iloc[-5]))
+                    elif len(rn) >= 2 and rn.iloc[0] != 0:
+                        # Fallback: compare latest to earliest available
+                        RevGrowth_YoY = float((rn.iloc[-1] - rn.iloc[0]) / abs(rn.iloc[0]))
+                    if len(nn) >= 5 and nn.iloc[-5] != 0:
+                        EarnGrowth_YoY = float((nn.iloc[-1] - nn.iloc[-5]) / abs(nn.iloc[-5]))
+                    elif len(nn) >= 2 and nn.iloc[0] != 0:
+                        EarnGrowth_YoY = float((nn.iloc[-1] - nn.iloc[0]) / abs(nn.iloc[0]))
                 except Exception: pass
 
             # G7 Size (45-day lagged shares × current price)
             LogMktCap = np.nan
-            if fund_df is not None and price is not None:
-                try:
-                    sh = _fund_val(fund_df, ticker, current_date, "Shares")
-                    pr = float(price.loc[:daily_end].iloc[-1]) \
-                         if len(price.loc[:daily_end]) > 0 else np.nan
-                    if not np.isnan(sh) and not np.isnan(pr) and sh>0 and pr>0:
-                        LogMktCap = float(np.log(sh * pr))
-                except Exception: pass
+            if not np.isnan(sh_val) and not np.isnan(pr) and sh_val > 0 and pr > 0:
+                LogMktCap = float(np.log(sh_val * pr))
 
             # G8 Liquidity — 1M vol / 3M vol ratio (price-based proxy)
             VolRatio = np.nan
@@ -636,6 +702,22 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
 
     factors_df = pd.DataFrame(records)
 
+    # Report PRE-imputation coverage (true state of data quality)
+    print("\n  Feature coverage (BEFORE imputation):")
+    for grp, feats in FEATURE_GROUPS.items():
+        for f in feats:
+            if f in factors_df.columns:
+                pct = factors_df[f].notna().mean()
+                flag = "✓" if pct > 0.5 else "⚠" if pct > 0.1 else "✗"
+                print(f"    {flag} {f:<18}: {pct:>5.1%}")
+
+    # Cross-sectional winsorization at 1st/99th percentile (prevents outlier domination)
+    for feat in FEATURES:
+        if feat in factors_df.columns:
+            factors_df[feat] = factors_df.groupby("date")[feat].transform(
+                lambda x: x.clip(x.quantile(0.01), x.quantile(0.99))
+            )
+
     # Cross-sectional median imputation — fill missing fundamentals
     # with each month's median (no future data leak)
     for feat in FEATURES:
@@ -644,10 +726,13 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None):
                 lambda x: x.fillna(x.median())
             )
 
+    # Report universe type
+    universe_type = "POINT-IN-TIME (survivorship-bias-free)" if monthly_universe else "STATIC (fallback)"
     print(f"\nFactor dataset: {len(factors_df):,} rows | "
           f"{factors_df['ticker'].nunique()} stocks | "
           f"{factors_df['date'].nunique()} months | {skipped} skipped")
-    print("\n  Feature coverage (after median imputation):")
+    print(f"  Universe type: {universe_type}")
+    print("\n  Feature coverage (AFTER imputation):")
     for grp, feats in FEATURE_GROUPS.items():
         for f in feats:
             if f in factors_df.columns:

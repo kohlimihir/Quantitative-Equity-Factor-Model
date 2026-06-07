@@ -2,13 +2,13 @@
   COMPREHENSIVE DIAGNOSTIC REPORT
 ==============================================================================
 
-Generated: 2026-05-23 17:43:36
-Configuration: optimized_low_turnover
-Total Runtime: 12.3 minutes
+Generated: 2026-06-06 19:33:04
+Configuration: baseline
+Total Runtime: 5.7 minutes
 
 PIPELINE CONFIGURATION:
 ------------------------------------------------------------------------------
-  Universe: 239 stocks
+  Universe: 543 stocks
   Time Periods: 71 months
   Features: 19
   Min Train Months: 24
@@ -17,44 +17,42 @@ PIPELINE CONFIGURATION:
 DATA QUALITY:
 ------------------------------------------------------------------------------
   Leakage Detection: ✓ ENABLED
-    All Checks Passed: ✓ YES
+    All Checks Passed: ❌ NO
   Feature Analysis: ✓ ENABLED
-    Top Features: Beta_12, Vol_12, Mom_12_1
+    Top Features: Vol_12, Mom_12_1, Mom_6_1
 
 MODEL PERFORMANCE:
 ------------------------------------------------------------------------------
   Model                          Mean IC      IC-IR     Sharpe
   ----------------------------------------------------------------------------
-  Ridge                          0.02105    0.11731      1.053
-  Lightgbm                       0.02274    0.17059      1.290
-  Sector Neutral                 0.01875    0.15858      1.132
+  Ridge                          0.00368    0.02263      0.596
+  Lightgbm                       0.00903    0.09250      0.954
+  Sector Neutral                 0.00427    0.04677      0.368
 
 ADVANCED FEATURES:
 ------------------------------------------------------------------------------
   Hyperparameter Tuning: ⚠ DISABLED
-  Ensemble Models: ✓ ENABLED
-    Ensemble Mean IC: 0.03518
-    Ensemble IC-IR: 0.23294
+  Ensemble Models: ⚠ DISABLED
   Sector-Specific Models: ⚠ DISABLED
 
 TURNOVER ANALYSIS:
 ------------------------------------------------------------------------------
-  Mean Monthly Turnover: 23.7%
-  Annual Turnover: 284%
-  Target Turnover: 15.0%
+  Mean Monthly Turnover: 25.3%
+  Annual Turnover: 304%
+  Target Turnover: 25.0%
   Status: ⚠ ABOVE TARGET
 
 OUT-OF-TIME VALIDATION:
 ------------------------------------------------------------------------------
-  OOT Months: 16
-  OOT Mean IC: 0.03110
-  OOT IC-IR: 0.21688
-  OOT Sharpe: 1.303
+  OOT Months: 17
+  OOT Mean IC: 0.01394
+  OOT IC-IR: 0.24191
+  OOT Sharpe: 0.898
 
 NET PERFORMANCE (10bps costs):
 ------------------------------------------------------------------------------
-  Net Sharpe Ratio: 1.121
-  Cumulative Return: 222.28%
+  Net Sharpe Ratio: 0.352
+  Cumulative Return: 44.52%
 
 ==============================================================================
   DIAGNOSTIC REPORT COMPLETE
