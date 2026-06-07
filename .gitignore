@@ -88,6 +88,7 @@ secrets/
 *DASHBOARD_COMPATIBILITY*.md
 *INSTRUCTIONS*.md
 *STATUS*.md
+AZURE_UPLOAD_NOTES.md
 
 # Backup directories
 backup_*/

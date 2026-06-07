@@ -25,14 +25,14 @@ def upload_to_azure():
     # Files to upload
     files_to_upload = {
         'predictions': [
-            'data/ensemble_optimize_predictions.csv',
+            'data/ensemble_predictions.csv',  # Main predictions file (will be uploaded as ensemble_optimize_predictions.csv)
             'data/shap_values.csv',
-            'data/ensemble_optimize_weights.csv'
+            'data/ensemble_weights.csv'
         ],
         'reports': [
             'reports/oot_validation_report.csv',
-            'reports/turnover_optimized.csv',
             'reports/feature_ic_summary.csv',
+            'reports/turnover_optimized.csv',
             'reports/comprehensive_diagnostic_report.txt'
         ]
     }
@@ -53,8 +53,12 @@ def upload_to_azure():
         for file_path in files:
             if os.path.exists(file_path):
                 try:
-                    # Upload with original name (latest)
+                    # Special handling for ensemble_predictions.csv
+                    # Upload as ensemble_optimize_predictions.csv for backward compatibility
                     blob_name = os.path.basename(file_path)
+                    if blob_name == 'ensemble_predictions.csv':
+                        blob_name = 'ensemble_optimize_predictions.csv'
+                    
                     blob_client = blob_service_client.get_blob_client(
                         container=container_name,
                         blob=blob_name

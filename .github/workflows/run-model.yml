@@ -40,7 +40,7 @@ jobs:
       run: |
         if [ -f "data/daily_prices.parquet" ]; then
           echo "📊 Data found, running full pipeline..."
-          python run_all.py --config optimized_low_turnover
+          python run_all.py --config clean_features
         else
           echo "⚠️ No cached data found. Skipping full pipeline run."
           echo "💡 To run the full pipeline, ensure data files are available."
@@ -51,7 +51,7 @@ jobs:
       continue-on-error: false
     
     - name: Upload results to Azure Blob Storage (if available)
-      if: success() && hashFiles('data/ensemble_optimize_predictions.csv') != ''
+      if: success() && hashFiles('data/ensemble_predictions.csv') != ''
       run: |
         pip install azure-storage-blob
         python upload_to_azure.py
@@ -60,16 +60,17 @@ jobs:
       continue-on-error: true
     
     - name: Upload artifacts (if available)
-      if: hashFiles('data/ensemble_optimize_predictions.csv') != ''
+      if: hashFiles('data/ensemble_predictions.csv') != ''
       uses: actions/upload-artifact@v4
       with:
         name: model-outputs
         path: |
-          data/ensemble_optimize_predictions.csv
+          data/ensemble_predictions.csv
           data/shap_values.csv
+          data/ensemble_weights.csv
           reports/oot_validation_report.csv
-          reports/turnover_optimized.csv
           reports/feature_ic_summary.csv
+          reports/turnover_optimized.csv
           reports/comprehensive_diagnostic_report.txt
         retention-days: 90
       continue-on-error: true
@@ -79,9 +80,11 @@ jobs:
         echo "## Model Pipeline Validation" >> $GITHUB_STEP_SUMMARY
         echo "- Date: $(date)" >> $GITHUB_STEP_SUMMARY
         echo "- Branch: opus_test" >> $GITHUB_STEP_SUMMARY
+        echo "- Config: clean_features" >> $GITHUB_STEP_SUMMARY
         echo "- Python: 3.11" >> $GITHUB_STEP_SUMMARY
         echo "- Status: ✅ Code validation passed" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Notes" >> $GITHUB_STEP_SUMMARY
         echo "- Full pipeline requires data files (not in repo)" >> $GITHUB_STEP_SUMMARY
-        echo "- Run locally with: \`python run_all.py --config optimized_low_turnover\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Run locally with: \`python run_all.py --config clean_features\`" >> $GITHUB_STEP_SUMMARY
+        echo "- Auto-uploads to Azure Blob Storage when run successfully" >> $GITHUB_STEP_SUMMARY
