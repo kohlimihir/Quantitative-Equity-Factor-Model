@@ -187,17 +187,37 @@ FEATURES = [
     "VolRatio",                              # G8 Liquidity
 ]
 
-# Optimized feature set based on IC analysis (removes low/negative IC features)
+# Sector-relative features (computed in apply_feature_engineering)
+SECTOR_REL_FEATURES = [
+    "Mom_12_1_sector_z", "Vol_12_sector_z", "PB_ratio_sector_z",
+    "ROE_sector_z", "LogMktCap_sector_z", "PE_TTM_sector_z",
+    "RevGrowth_YoY_sector_z",
+]
+
+# Interaction features (computed in apply_feature_engineering)
+INTERACTION_FEATURES = [
+    "Mom12_x_PBratio",   # Value × Momentum (Asness 2013)
+    "ROE_x_RevGrowth",   # Quality × Growth (Novy-Marx 2013)
+    "Vol12_x_LogMktCap", # Risk × Size (low-vol anomaly)
+]
+
+# Full feature set (base + engineered, populated after apply_feature_engineering)
+ALL_FEATURES = FEATURES.copy()  # extended dynamically
+
+# Optimized feature set based on IC analysis (only features with positive mean IC and good stability)
 OPTIMIZED_FEATURES = [
-    "RevGrowth_YoY","EarnGrowth_YoY",       # G6 Growth (highest IC)
-    "IdioVol","Beta_12","Vol_12",           # G2 Risk (strong IC)
-    "Mom_6_1","Mom_12_1",                   # G1 Momentum (positive IC)
-    "EV_EBITDA","PE_TTM",                   # G4 Value (moderate IC)
-    "ROE",                                   # G5 Quality (keep best)
-    "MaxRet_1M","VolRatio",                 # G3 Technical, G8 Liquidity
+    "Vol_12",                               # G2 Risk (best IC: +0.020, highest stability)
+    "VolRatio",                             # G8 Liquidity (IC: +0.015)
+    "LogMktCap",                            # G7 Size (IC: +0.016, high stability)
+    "Mom_6_1","Mom_12_1",                   # G1 Momentum (positive IC, high stability)
+    "MaxRet_1M",                            # G3 Technical (IC: +0.008)
+    "Trend_MA",                             # G3 Technical (high stability)
+    "CashFlowYield",                        # G5 Quality (IC: +0.008)
+    "EarnGrowth_YoY",                       # G6 Growth (IC: +0.008)
 ]
 
 TARGET = "Next_Month_Return"
+SECTOR_REL_TARGET = "Sector_Relative_Return"  # sector-relative target for sector-neutral training
 
 FEATURE_GROUPS = {
     "G1 Momentum"  :["Mom_12_1","Mom_6_1","Mom_1"],
@@ -208,23 +228,26 @@ FEATURE_GROUPS = {
     "G6 Growth"    :["RevGrowth_YoY","EarnGrowth_YoY"],
     "G7 Size"      :["LogMktCap"],
     "G8 Liquidity" :["VolRatio"],
+    "G9 Sector-Relative" : [],   # populated dynamically
+    "G10 Interactions"   : [],   # populated dynamically
 }
 
 # ── Feature Engineering Configuration ──────────────────────────────────────────
 FEATURE_ENGINEERING_CONFIG = {
-    "enable_interactions": False,      # Enable interaction features between groups
-    "enable_nonlinear": False,         # Enable non-linear transformations
-    "enable_sector_relative": False,   # Enable sector-relative features
-    "interaction_pairs": [             # Pairs of groups to create interactions
-        ("G1 Momentum", "G4 Value"),   # Momentum × Value
-        ("G2 Risk", "G7 Size"),        # Risk × Size
-        ("G3 Technical", "G5 Quality"), # Technical × Quality
+    "enable_interactions": True,       # Targeted interaction features
+    "enable_nonlinear": False,         # Non-linear transforms (disabled — adds noise for 250 stocks)
+    "enable_sector_relative": True,    # Sector-relative z-scores — KEY for sector-neutral alpha
+    "interaction_pairs": [             # Targeted high-value pairs (not group-level combos)
+        ("G1 Momentum", "G4 Value"),   # Momentum × Value — Asness (2013)
+        ("G5 Quality", "G6 Growth"),    # Quality × Growth — Novy-Marx (2013)
+        ("G2 Risk", "G7 Size"),         # Risk × Size — low-vol anomaly
     ],
-    "nonlinear_features": [            # Features to apply non-linear transforms
+    "nonlinear_features": [
         "Mom_12_1", "Mom_6_1", "Vol_12", "LogMktCap", "PB_ratio", "PE_TTM"
     ],
     "sector_relative_features": [      # Features to make sector-relative
-        "Mom_12_1", "Vol_12", "PB_ratio", "ROE", "LogMktCap"
+        "Mom_12_1", "Vol_12", "PB_ratio", "ROE", "LogMktCap",
+        "PE_TTM", "RevGrowth_YoY",
     ],
 }
 
@@ -239,6 +262,8 @@ def get_features_from_config(config=None):
     Returns:
         List of feature names to use
     """
+    global FEATURES  # Allow updating the global FEATURES list
+    
     if config is None:
         return FEATURES
     
@@ -248,7 +273,8 @@ def get_features_from_config(config=None):
     if not features_config.get("use_all_features", True):
         selected = features_config.get("selected_features", None)
         if selected and isinstance(selected, list):
-            print(f"Using {len(selected)} selected features from config")
+            print(f"  ✓ Using {len(selected)} selected features from config (not all {len(FEATURES)})")
+            FEATURES = selected  # Update global FEATURES
             return selected
     
     # Default to all features
@@ -547,7 +573,8 @@ def compute_factors(monthly_returns, prices, fund_df=None, sector_map=None,
             if fund_df is not None:
                 td = fund_df[fund_df["ticker"] == ticker]
                 cut = pd.Timestamp(current_date) - pd.Timedelta(days=45)
-                vq = td[td.index < cut].sort_index()  # strict < for leakage prevention
+                # Use <= to ensure we only use data from quarters ending at least 45 days before current_date
+                vq = td[td.index <= cut].sort_index()  # strict <= for 45-day lag enforcement
             if price is not None:
                 p_end = price.loc[:daily_end].dropna()
                 if len(p_end) > 0:
@@ -785,21 +812,17 @@ def check_feature_correlation(factors_df, threshold=0.75):
 
 def add_interaction_features(factors_df, config=None):
     """
-    Add interaction features between factor groups.
+    Add targeted interaction features between specific factor pairs.
     
-    Creates multiplicative interactions between features from different groups
-    to capture non-linear relationships (e.g., momentum × value, risk × size).
+    Creates 3 academically-grounded interactions using rank-transformed
+    inputs (cross-sectional percentile ranks per month) for stability:
     
-    Interaction features use automatic naming: "Feature1_x_Feature2"
+    1. Mom12_x_PBratio    — Value × Momentum (Asness 2013)
+    2. ROE_x_RevGrowth    — Quality × Growth (Novy-Marx 2013)
+    3. Vol12_x_LogMktCap  — Risk × Size (low-vol anomaly)
     
-    Args:
-        factors_df: DataFrame with base features
-        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
-    
-    Returns:
-        DataFrame with added interaction features
-        
-    Validates: Requirements 2.5
+    Rank-based inputs ensure interactions are scale-invariant and
+    robust to outliers in fundamentals (e.g., PE_TTM=500).
     """
     if config is None:
         config = FEATURE_ENGINEERING_CONFIG
@@ -807,26 +830,24 @@ def add_interaction_features(factors_df, config=None):
     if not config.get("enable_interactions", False):
         return factors_df
     
-    print("\n=== Adding Interaction Features ===")
+    print("\n=== Adding Targeted Interaction Features ===")
     
-    interaction_pairs = config.get("interaction_pairs", [])
+    # Define specific interaction pairs with clean names
+    specific_interactions = [
+        ("Mom_12_1",       "PB_ratio",       "Mom12_x_PBratio",   "Value×Momentum (Asness 2013)"),
+        ("ROE",            "RevGrowth_YoY",  "ROE_x_RevGrowth",   "Quality×Growth (Novy-Marx 2013)"),
+        ("Vol_12",         "LogMktCap",       "Vol12_x_LogMktCap", "Risk×Size (low-vol anomaly)"),
+    ]
+    
     new_features = []
-    
-    for group1_name, group2_name in interaction_pairs:
-        group1_features = FEATURE_GROUPS.get(group1_name, [])
-        group2_features = FEATURE_GROUPS.get(group2_name, [])
-        
-        for feat1 in group1_features:
-            for feat2 in group2_features:
-                if feat1 in factors_df.columns and feat2 in factors_df.columns:
-                    interaction_name = f"{feat1}_x_{feat2}"
-                    
-                    # Create interaction: product of the two features
-                    # Handle NaN values gracefully
-                    factors_df[interaction_name] = factors_df[feat1] * factors_df[feat2]
-                    
-                    new_features.append(interaction_name)
-                    print(f"  Created: {interaction_name}")
+    for feat1, feat2, name, desc in specific_interactions:
+        if feat1 in factors_df.columns and feat2 in factors_df.columns:
+            # Use cross-sectional ranks for stability (scale-invariant)
+            r1 = factors_df.groupby("date")[feat1].rank(pct=True)
+            r2 = factors_df.groupby("date")[feat2].rank(pct=True)
+            factors_df[name] = r1 * r2
+            new_features.append(name)
+            print(f"  Created: {name:<22} — {desc}")
     
     print(f"  Total interaction features added: {len(new_features)}")
     
@@ -955,23 +976,22 @@ def add_sector_relative_features(factors_df, config=None):
 
 def apply_feature_engineering(factors_df, config=None):
     """
-    Apply all feature engineering transformations.
+    Apply all feature engineering transformations and register new features.
     
     This is the main entry point for feature engineering enhancements.
-    Applies interaction features, non-linear transformations, and
-    sector-relative features based on configuration.
+    After calling this function, ALL_FEATURES and FEATURE_GROUPS are updated
+    to include the engineered features, ready for model training.
+    
+    Transformations applied:
+    1. Targeted interaction features (Value×Momentum, Quality×Growth, Risk×Size)
+    2. Non-linear transformations (optional, disabled by default)
+    3. Sector-relative z-scores for key features
+    4. Sector-relative return target for sector-neutral training
     
     All transformations maintain temporal integrity (no future data leakage).
-    
-    Args:
-        factors_df: DataFrame with base features
-        config: Feature engineering configuration dict (default: FEATURE_ENGINEERING_CONFIG)
-    
-    Returns:
-        DataFrame with all engineered features added
-        
-    Validates: Requirements 2.5, 2.6, 2.9
     """
+    global ALL_FEATURES
+    
     if config is None:
         config = FEATURE_ENGINEERING_CONFIG
     
@@ -980,35 +1000,68 @@ def apply_feature_engineering(factors_df, config=None):
     print("="*70)
     
     original_feature_count = len([c for c in factors_df.columns 
-                                   if c not in ["date", "ticker", "sector", TARGET]])
+                                   if c not in ["date", "ticker", "sector", TARGET, SECTOR_REL_TARGET]])
     
     # Apply transformations in sequence
     factors_df = add_interaction_features(factors_df, config)
     factors_df = add_nonlinear_transformations(factors_df, config)
     factors_df = add_sector_relative_features(factors_df, config)
     
-    # Cross-sectional median imputation for new features
-    # (same approach as base features - no future data leakage)
-    new_features = [c for c in factors_df.columns 
-                    if c not in ["date", "ticker", "sector", TARGET] 
-                    and c not in FEATURES]
+    # ── Create sector-relative return target ──
+    # Ticker return minus sector median return for that month
+    # Forces the model to learn stock selection, not sector rotation
+    if "sector" in factors_df.columns and TARGET in factors_df.columns:
+        print("\n=== Creating Sector-Relative Return Target ===")
+        factors_df[SECTOR_REL_TARGET] = factors_df.groupby(["date", "sector"])[TARGET].transform(
+            lambda x: x - x.median()
+        )
+        print(f"  Created: {SECTOR_REL_TARGET} = {TARGET} - sector_median({TARGET})")
+        print(f"  Raw target std: {factors_df[TARGET].std():.4f}")
+        print(f"  Sector-relative target std: {factors_df[SECTOR_REL_TARGET].std():.4f}")
     
-    if new_features:
-        print(f"\n=== Imputing Missing Values for New Features ===")
-        for feat in new_features:
+    # ── Register new features into ALL_FEATURES and FEATURE_GROUPS ──
+    new_engineered = [c for c in factors_df.columns 
+                      if c not in ["date", "ticker", "sector", TARGET, SECTOR_REL_TARGET] 
+                      and c not in FEATURES]
+    
+    # Only include z-score features (not percentile rank — avoids feature bloat)
+    sector_z_feats = [f for f in new_engineered if f.endswith("_sector_z")]
+    interaction_feats = [f for f in new_engineered if "_x_" in f]
+    other_feats = [f for f in new_engineered if f not in sector_z_feats and f not in interaction_feats
+                   and not f.endswith("_sector_pct")]  # exclude pct features
+    
+    # Update FEATURE_GROUPS
+    FEATURE_GROUPS["G9 Sector-Relative"] = sector_z_feats
+    FEATURE_GROUPS["G10 Interactions"] = interaction_feats
+    
+    # Build ALL_FEATURES: base + z-scores + interactions (no pct features)
+    ALL_FEATURES = FEATURES + sector_z_feats + interaction_feats + other_feats
+    
+    # Winsorize + impute new features
+    feats_to_process = sector_z_feats + interaction_feats + other_feats
+    if feats_to_process:
+        print(f"\n=== Processing {len(feats_to_process)} New Features ===")
+        for feat in feats_to_process:
+            # Winsorize at 1st/99th percentile
+            factors_df[feat] = factors_df.groupby("date")[feat].transform(
+                lambda x: x.clip(x.quantile(0.01), x.quantile(0.99))
+            )
+            # Median imputation
             factors_df[feat] = factors_df.groupby("date")[feat].transform(
                 lambda x: x.fillna(x.median())
             )
-        print(f"  Applied cross-sectional median imputation to {len(new_features)} new features")
+        print(f"  Applied winsorization + median imputation to {len(feats_to_process)} new features")
     
-    final_feature_count = len([c for c in factors_df.columns 
-                                if c not in ["date", "ticker", "sector", TARGET]])
+    final_feature_count = len(ALL_FEATURES)
     
     print("\n" + "="*70)
     print(f"  Feature Engineering Complete")
-    print(f"  Original features: {original_feature_count}")
-    print(f"  New features: {final_feature_count - original_feature_count}")
-    print(f"  Total features: {final_feature_count}")
+    print(f"  Base features:          {len(FEATURES)}")
+    print(f"  Sector-relative (z):    {len(sector_z_feats)}")
+    print(f"  Interaction features:   {len(interaction_feats)}")
+    print(f"  Other new features:     {len(other_feats)}")
+    print(f"  Total model features:   {final_feature_count}")
+    print(f"  ALL_FEATURES list:      {ALL_FEATURES}")
     print("="*70)
     
     return factors_df

@@ -24,7 +24,7 @@ import matplotlib.ticker as mtick
 import warnings
 warnings.filterwarnings("ignore")
 
-from data_loader import FEATURES, TARGET, FEATURE_GROUPS
+from data_loader import FEATURES, TARGET, FEATURE_GROUPS, ALL_FEATURES
 
 FEATURE_LABELS = {
     "Mom_12_1"       : "12M Momentum",
@@ -80,17 +80,22 @@ plt.rcParams.update({
 def walk_forward_lgbm(factors_df, min_train_months=24):
     """
     Expanding-window walk-forward with LightGBM.
-    250 stocks × growing window = thousands of training rows.
+    Uses ALL_FEATURES (base + sector-relative + interactions).
     Fixed n_estimators — deterministic, zero leakage.
     Missing data filled with cross-sectional median per month.
     """
+    # Use ALL_FEATURES if available and populated, else fall back to FEATURES
+    active_features = [f for f in ALL_FEATURES if f in factors_df.columns]
+    if len(active_features) < len(FEATURES):
+        active_features = [f for f in FEATURES if f in factors_df.columns]
+    
     all_dates    = sorted(factors_df["date"].unique())
     results      = []
     shap_records = []
 
     print(f"LightGBM walk-forward: {len(all_dates)} months, "
           f"~{factors_df['ticker'].nunique()} stocks/month, "
-          f"{len(FEATURES)} features")
+          f"{len(active_features)} features")
 
     for i, test_date in enumerate(all_dates):
         if i < min_train_months:
@@ -100,13 +105,13 @@ def walk_forward_lgbm(factors_df, min_train_months=24):
         if len(train_df) < 200 or len(test_df) == 0:
             continue
 
-        X_train_df = train_df[FEATURES].copy()
-        for col in FEATURES:
+        X_train_df = train_df[active_features].copy()
+        for col in active_features:
             med = X_train_df[col].median()
             X_train_df[col] = X_train_df[col].fillna(med)
         X_train_df = X_train_df.fillna(0)
-        X_test_df = test_df[FEATURES].copy()
-        for col in FEATURES:
+        X_test_df = test_df[active_features].copy()
+        for col in active_features:
             med = X_test_df[col].median()
             X_test_df[col] = X_test_df[col].fillna(med)
         X_test_df = X_test_df.fillna(0)
@@ -134,7 +139,7 @@ def walk_forward_lgbm(factors_df, min_train_months=24):
             })
             rec = {"date":test_date,"ticker":ticker,
                    "predicted":y_pred[j],"actual":y_test[j]}
-            for k, feat in enumerate(FEATURES):
+            for k, feat in enumerate(active_features):
                 rec[f"shap_{feat}"] = shap_values[j, k]
                 rec[f"feat_{feat}"] = X_test[j, k]
             shap_records.append(rec)

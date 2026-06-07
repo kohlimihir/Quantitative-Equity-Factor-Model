@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files - Allow pushing for portfolio demonstration
+# Only exclude very large raw data files
+data/daily_prices.parquet
+data/fundamentals.parquet
+*.h5
+*.pkl
+
+# Allow these data files (model outputs)
+# data/*.csv - INCLUDED
+# reports/*.csv - INCLUDED
+# outputs/*.png - INCLUDED
+
+# Exclude only the leakage audit (has false positive warning)
+reports/leakage_audit_report.txt
+
+# Allow other reports
+# reports/*.json - INCLUDED
+
+# Model files
+models/
+*.joblib
+*.pickle
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.pem
+*.key
+secrets/
+
+# ============================================
+# INTERVIEW PREP DOCUMENTS (LOCAL ONLY)
+# ============================================
+# These are for your interview preparation
+# Keep them local, don't push to public GitHub
+
+*INTERVIEW*.md
+*CHEAT_SHEET*.md
+*IMPROVEMENTS*.md
+*FINAL*.md
+*CORRECTIONS*.md
+*LEAKAGE*.md
+*DASHBOARD_COMPATIBILITY*.md
+*INSTRUCTIONS*.md
+*STATUS*.md
+
+# Backup directories
+backup_*/

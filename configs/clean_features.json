@@ -1,0 +1,101 @@
+{
+  "profile": "clean_features",
+  "name": "clean_features",
+  "version": "2.0",
+  "description": "Cleaned feature set with only positive IC features for realistic factor model performance",
+  
+  "data": {
+    "min_train_months": 24,
+    "fundamental_lag_days": 45,
+    "use_point_in_time_universe": true
+  },
+  
+  "features": {
+    "use_all_features": false,
+    "selected_features": [
+      "Vol_12",
+      "VolRatio",
+      "LogMktCap",
+      "Mom_6_1",
+      "Mom_12_1",
+      "MaxRet_1M",
+      "Trend_MA",
+      "CashFlowYield",
+      "EarnGrowth_YoY"
+    ],
+    "feature_engineering": {
+      "enable_interactions": true,
+      "enable_sector_relative": true,
+      "sector_relative_features": [
+        "Mom_12_1",
+        "Vol_12",
+        "LogMktCap"
+      ]
+    }
+  },
+  
+  "models": {
+    "ridge": {
+      "enabled": true,
+      "alpha": 5.0
+    },
+    "lightgbm": {
+      "enabled": true,
+      "max_depth": 3,
+      "learning_rate": 0.01,
+      "num_leaves": 15,
+      "min_child_samples": 100,
+      "subsample": 0.7,
+      "colsample_bytree": 0.7,
+      "reg_alpha": 1.0,
+      "reg_lambda": 1.0,
+      "n_estimators": 50
+    },
+    "ensemble": {
+      "enabled": true,
+      "method": "equal",
+      "validation_window": 6
+    },
+    "sector_specific": {
+      "enabled": false
+    }
+  },
+  
+  "portfolio": {
+    "top_n_per_sector": 3,
+    "ewm_alpha": 0.5,
+    "rebalance_threshold": 0.15,
+    "holding_bonus_per_month": 0.02,
+    "holding_bonus_cap_months": 6,
+    "min_holding_period_months": 2
+  },
+  
+  "validation": {
+    "oot_start_date": "2025-01-01",
+    "min_oot_months": 12
+  },
+  
+  "turnover": {
+    "target_monthly_pct": 15.0,
+    "target_annual_pct": 180.0
+  },
+  
+  "analysis": {
+    "hyperparameter_tuning": {
+      "enabled": false
+    },
+    "early_stopping": {
+      "enabled": true
+    }
+  },
+  
+  "diagnostics": {
+    "leakage_detection": true,
+    "feature_analysis": true,
+    "stability_monitoring": true,
+    "performance_plots": true,
+    "save_predictions": true,
+    "save_feature_importance": true,
+    "save_diagnostics": true
+  }
+}

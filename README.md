@@ -1,10 +1,12 @@
 # Quantitative Equity Factor Model
 
-A machine learning-powered quantitative trading system that predicts monthly stock returns using fundamental and technical factors. Built with ensemble methods, sector neutralization, and transaction cost optimization.
+A production-grade quantitative equity factor model with comprehensive diagnostics, demonstrating end-to-end systematic trading system development. Built with proper validation, data leakage detection, and feature engineering discipline.
 
 [![Live Dashboard](https://img.shields.io/badge/Dashboard-Live-brightgreen)]((https://quantitative-equity-factor-model-cblvmbde8cqd8pbxxvomfd.streamlit.app/))
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> **For Interviewers:** This project demonstrates systematic quantitative modeling with automated diagnostics. See `INTERVIEW_CHEAT_SHEET.md` for key metrics and `INTERVIEW_GUIDE.md` for detailed methodology.
 
 ## 🎯 Live Demo
 
@@ -12,16 +14,17 @@ A machine learning-powered quantitative trading system that predicts monthly sto
 
 ---
 
-## 📊 Performance Highlights
+## 📊 Performance Highlights (Clean Features Model)
 
 | Metric | Value | Description |
 |--------|-------|-------------|
-| **Sharpe Ratio** | 1.37 | Excellent risk-adjusted returns |
-| **Information Coefficient** | 0.038 | Strong predictive power |
-| **Monthly Turnover** | ~30% | Low transaction costs |
-| **Win Rate** | 56% | Consistent positive months |
+| **Information Coefficient** | +0.0086 | Positive predictive power (IC-IR: 0.104) |
+| **Sharpe Ratio (OOT)** | 0.31 (net) | Realistic post-cost performance |
+| **Top Sector IC** | +0.066 (Tech) | Strong sector-specific signals |
+| **Win Rate** | 53% | Consistent positive months |
+| **Universe** | 658 stocks | Point-in-time, survivorship-bias-free |
 
-**Out-of-Time Validation**: Tested on unseen data (Jan 2025+) to ensure real-world viability.
+**Out-of-Time Validation**: 17 months (Jan 2025-May 2026) with proper degradation (OOT IC < in-sample IC).
 
 ---
 
@@ -57,6 +60,23 @@ streamlit run app.py
 ```
 
 Dashboard opens at `http://localhost:8501`
+
+---
+
+## 🔍 Project Improvements & Diagnostics
+
+This project evolved through systematic debugging and feature engineering:
+
+### **Issues Found & Fixed:**
+1. **Data Leakage:** Fundamental lag enforcement bug (detected by automated tools)
+2. **Negative IC Features:** 10 out of 19 features removed through IC analysis
+3. **Overfitting Risk:** Strengthened regularization (Ridge alpha=10, LightGBM depth=3)
+
+### **Documentation:**
+- **`INTERVIEW_CHEAT_SHEET.md`** - Quick reference with key metrics
+- **`INTERVIEW_GUIDE.md`** - Complete methodology and Q&A prep
+- **`MODEL_IMPROVEMENTS.md`** - Technical details of corrections
+- **`README_IMPROVEMENTS.md`** - Before/after comparison
 
 ---
 

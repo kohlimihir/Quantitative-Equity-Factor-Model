@@ -2,8 +2,8 @@
   COMPREHENSIVE DATA LEAKAGE AUDIT REPORT
 ======================================================================
 
-Generated: 2026-06-06 19:31:42
-Configuration: baseline
+Generated: 2026-06-07 18:05:48
+Configuration: clean_features
 
 TEMPORAL BOUNDARY VALIDATION:
   Status: ❌ FAILED

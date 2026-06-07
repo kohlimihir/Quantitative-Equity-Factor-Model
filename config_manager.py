@@ -296,7 +296,8 @@ class ConfigManager:
         print(f"    Fundamental lag: {summary['fundamental_lag_days']} days")
         print(f"\n  Enabled Models: {', '.join(summary['enabled_models'])}")
         print(f"  Enabled Diagnostics: {', '.join(summary['enabled_diagnostics'])}")
-        print(f"  Turnover Target: {summary['turnover_target']:.1%}")
+        if summary['turnover_target'] is not None:
+            print(f"  Turnover Target: {summary['turnover_target']:.1%}")
         print("="*70)
 
 

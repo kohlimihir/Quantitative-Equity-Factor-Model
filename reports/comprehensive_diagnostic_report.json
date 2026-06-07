@@ -1,11 +1,11 @@
 {
   "pipeline_info": {
-    "configuration": "baseline",
-    "total_runtime_minutes": 5.675032607714335,
-    "timestamp": "2026-06-06 19:33:04",
+    "configuration": "clean_features",
+    "total_runtime_minutes": 35.66555422147115,
+    "timestamp": "2026-06-07 18:07:34",
     "universe_size": 543,
     "time_periods": 71,
-    "features_count": 19
+    "features_count": 9
   },
   "leakage_detection": {
     "enabled": true,
@@ -15,34 +15,34 @@
     "enabled": true,
     "top_features": [
       "Vol_12",
-      "Mom_12_1",
       "Mom_6_1",
-      "Trend_MA",
+      "Mom_12_1",
+      "LogMktCap",
       "MaxRet_1M"
     ],
     "bottom_features": [
-      "PB_ratio",
-      "PE_TTM",
-      "GrossMargin",
-      "Beta_12",
-      "IdioVol"
+      "MaxRet_1M",
+      "VolRatio",
+      "Trend_MA",
+      "EarnGrowth_YoY",
+      "CashFlowYield"
     ]
   },
   "model_performance": {
     "ridge": {
-      "mean_ic": 0.0036763720371271883,
-      "ic_ir": 0.022631042111680957,
-      "sharpe": 0.5958109960190247
+      "mean_ic": -0.004359186249467882,
+      "ic_ir": -0.030739214422999456,
+      "sharpe": 0.4527242681226095
     },
     "lightgbm": {
-      "mean_ic": 0.009034272925357132,
-      "ic_ir": 0.09250236943659289,
-      "sharpe": 0.95364212610136
+      "mean_ic": 0.006624995636175899,
+      "ic_ir": 0.057667591076800806,
+      "sharpe": 0.8254739384455857
     },
     "sector_neutral": {
-      "mean_ic": 0.004269995135152148,
-      "ic_ir": 0.04676691733972165,
-      "sharpe": 0.36763943908166385
+      "mean_ic": 0.009381148048817164,
+      "ic_ir": 0.11324310271969332,
+      "sharpe": 0.3024139813269841
     }
   },
   "hyperparameter_tuning": {
@@ -51,27 +51,27 @@
     "lgbm_best_score": null
   },
   "ensemble": {
-    "enabled": false,
-    "mean_ic": null,
-    "ic_ir": null
+    "enabled": true,
+    "mean_ic": 0.005190506447668292,
+    "ic_ir": 0.03595113464214514
   },
   "sector_specific": {
     "enabled": false,
     "overall_ic": null
   },
   "turnover": {
-    "mean_monthly": 0.2529644268774704,
-    "annual": 3.0355731225296445,
+    "mean_monthly": 0.26482213438735175,
+    "annual": 3.1778656126482208,
     "target": 0.25
   },
   "oot_validation": {
-    "mean_ic": 0.013940023339891245,
-    "ic_ir": 0.24191411906633445,
-    "sharpe": 0.8978909153013738,
+    "mean_ic": 0.006249284318780731,
+    "ic_ir": 0.10950461594252403,
+    "sharpe": 0.5114885375045337,
     "months": 17
   },
   "net_performance": {
-    "sharpe_10bps": 0.35223673063433647,
-    "cumulative_return": 0.4452044309667129
+    "sharpe_10bps": 0.2877171242977355,
+    "cumulative_return": 0.38952848714000465
   }
 }

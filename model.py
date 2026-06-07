@@ -16,15 +16,20 @@ from sklearn.metrics import mean_squared_error, r2_score
 import warnings
 warnings.filterwarnings("ignore")
 
-from data_loader import FEATURES, TARGET, FEATURE_GROUPS
+from data_loader import FEATURES, TARGET, FEATURE_GROUPS, ALL_FEATURES
 
 
 def walk_forward_validation(factors_df, min_train_months=24):
     """Expanding-window walk-forward validation. Train on [0..i-1], predict i."""
+    # Use ALL_FEATURES if available and populated, else fall back to FEATURES
+    active_features = [f for f in ALL_FEATURES if f in factors_df.columns]
+    if len(active_features) < len(FEATURES):
+        active_features = [f for f in FEATURES if f in factors_df.columns]
+    
     all_dates = sorted(factors_df["date"].unique())
     results, coef_list = [], []
     print(f"Ridge walk-forward: {len(all_dates)} months, "
-          f"~{factors_df['ticker'].nunique()} stocks/month, {len(FEATURES)} features")
+          f"~{factors_df['ticker'].nunique()} stocks/month, {len(active_features)} features")
 
     for i, test_date in enumerate(all_dates):
         if i < min_train_months:
@@ -34,14 +39,14 @@ def walk_forward_validation(factors_df, min_train_months=24):
         if len(train_df) < 200 or len(test_df) == 0:
             continue
 
-        X_train_df = train_df[FEATURES].copy()
-        for col in FEATURES:
+        X_train_df = train_df[active_features].copy()
+        for col in active_features:
             med = X_train_df[col].median()
             X_train_df[col] = X_train_df[col].fillna(med)
         X_train_df = X_train_df.fillna(0)
         
-        X_test_df = test_df[FEATURES].copy()
-        for col in FEATURES:
+        X_test_df = test_df[active_features].copy()
+        for col in active_features:
             med = X_test_df[col].median()
             X_test_df[col] = X_test_df[col].fillna(med)
         X_test_df = X_test_df.fillna(0)
@@ -58,7 +63,7 @@ def walk_forward_validation(factors_df, min_train_months=24):
         model = Ridge(alpha=1.0)
         model.fit(X_train, y_train)
         y_pred = model.predict(X_test)
-        coef_list.append(dict(zip(FEATURES, model.coef_)))
+        coef_list.append(dict(zip(active_features, model.coef_)))
 
         for j, ticker in enumerate(test_df["ticker"].values):
             results.append({

@@ -137,13 +137,20 @@ else:
 
 
 # ── STEP 2: Data & Features ───────────────────────────────────────────────────
-step(2, "Building point-in-time universe and engineering 19 factors")
+step(2, "Building point-in-time universe and engineering factors")
 t = time.time()
 
+# Import and configure features FIRST (before other imports that use FEATURES)
+from data_loader import get_features_from_config
+ACTIVE_BASE_FEATURES = get_features_from_config(config)
+
+# Now import everything else
 from data_loader import (
     download_price_data, compute_monthly_returns, compute_factors,
     download_fundamentals, check_feature_correlation,
-    SECTOR_MAP, FEATURES, FEATURE_GROUPS, TARGET
+    apply_feature_engineering,
+    SECTOR_MAP, FEATURES, FEATURE_GROUPS, TARGET,
+    ALL_FEATURES, SECTOR_REL_TARGET,
 )
 
 # ── Build point-in-time S&P 500 universe (survivorship bias fix) ──────────
@@ -186,12 +193,19 @@ factors_df.to_csv("data/factor_features.csv", index=False)
 
 corr_matrix = check_feature_correlation(factors_df)
 
-done("data_loader", time.time() - t)
+# ── Apply feature engineering (interactions, sector-relative, sector target) ──
+factors_df = apply_feature_engineering(factors_df)
+factors_df.to_csv("data/factor_features.csv", index=False)
+
+# Re-import ALL_FEATURES after feature engineering has populated it
+from data_loader import ALL_FEATURES as ACTIVE_FEATURES
+
+done("data_loader + feature_engineering", time.time() - t)
 universe_label = "DYNAMIC (point-in-time)" if USE_DYNAMIC_UNIVERSE else "STATIC (fallback)"
 print(f"\n  Universe : {factors_df['ticker'].nunique()} stocks, "
       f"{factors_df['date'].nunique()} months [{universe_label}]")
-print(f"  Features : {len(FEATURES)} ({list(FEATURE_GROUPS.keys())})")
-
+print(f"  Base features: {len(FEATURES)} | Total features: {len(ACTIVE_FEATURES)}")
+print(f"  Feature groups: {list(FEATURE_GROUPS.keys())}")
 
 
 # ── STEP 1b: Complete Leakage Detection (after data loaded) ───────────────────

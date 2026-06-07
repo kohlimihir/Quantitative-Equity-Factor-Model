@@ -50,7 +50,7 @@ import lightgbm as lgb
 import warnings
 warnings.filterwarnings("ignore")
 
-from data_loader import FEATURES, TARGET, SECTOR_MAP
+from data_loader import FEATURES, TARGET, SECTOR_MAP, ALL_FEATURES, SECTOR_REL_TARGET
 
 TOP_PER_SECTOR      = 2      # 2 × 11 GICS sectors = 22 stocks/month
 REBAL_THRESHOLD     = 0.25   # challenger must beat holder by 25 rank pct points (higher = less turnover)
@@ -95,12 +95,20 @@ def add_sector_features(factors_df, sector_map=None):
         df["sector"] = df["ticker"].map(sector_map)
     df = df.dropna(subset=["sector"])
 
-    # Use raw features directly — no Z-scoring
-    model_features = list(FEATURES)
+    # Use ALL_FEATURES (base + sector-relative + interactions) if available
+    try:
+        from data_loader import ALL_FEATURES as current_features
+        model_features = [f for f in current_features if f in df.columns]
+    except ImportError:
+        model_features = list(FEATURES)
+    
+    # Fallback to base features if engineered features not yet computed
+    if len(model_features) <= len(FEATURES):
+        model_features = [f for f in FEATURES if f in df.columns]
 
     sector_counts = df["sector"].value_counts().to_dict()
     print(f"Sectors: {sector_counts}")
-    print(f"Using {len(model_features)} raw features (no Z-scoring)\n")
+    print(f"Using {len(model_features)} features (incl. sector-relative + interactions)\n")
     return df, model_features
 
 
@@ -171,9 +179,11 @@ def walk_forward_sector_neutral(factors_df, sector_z_features,
         X_test_df = X_test_df.fillna(0)
 
         X_train = X_train_df.values
-        y_train = train_df[TARGET].values          # raw return — not sector-relative
+        # Use sector-relative target to force stock-selection learning
+        train_target_col = SECTOR_REL_TARGET if SECTOR_REL_TARGET in train_df.columns else TARGET
+        y_train = train_df[train_target_col].values
         X_test  = X_test_df.values
-        y_test  = test_df[TARGET].values
+        y_test  = test_df[TARGET].values            # always evaluate on raw returns
 
         # Fixed n_estimators — deterministic, zero leakage
         model = lgb.LGBMRegressor(**LGB_PARAMS)

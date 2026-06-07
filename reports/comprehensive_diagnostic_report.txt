@@ -2,15 +2,15 @@
   COMPREHENSIVE DIAGNOSTIC REPORT
 ==============================================================================
 
-Generated: 2026-06-06 19:33:04
-Configuration: baseline
-Total Runtime: 5.7 minutes
+Generated: 2026-06-07 18:07:34
+Configuration: clean_features
+Total Runtime: 35.7 minutes
 
 PIPELINE CONFIGURATION:
 ------------------------------------------------------------------------------
   Universe: 543 stocks
   Time Periods: 71 months
-  Features: 19
+  Features: 9
   Min Train Months: 24
   Fundamental Lag: 45 days
 
@@ -19,40 +19,42 @@ DATA QUALITY:
   Leakage Detection: ✓ ENABLED
     All Checks Passed: ❌ NO
   Feature Analysis: ✓ ENABLED
-    Top Features: Vol_12, Mom_12_1, Mom_6_1
+    Top Features: Vol_12, Mom_6_1, Mom_12_1
 
 MODEL PERFORMANCE:
 ------------------------------------------------------------------------------
   Model                          Mean IC      IC-IR     Sharpe
   ----------------------------------------------------------------------------
-  Ridge                          0.00368    0.02263      0.596
-  Lightgbm                       0.00903    0.09250      0.954
-  Sector Neutral                 0.00427    0.04677      0.368
+  Ridge                         -0.00436   -0.03074      0.453
+  Lightgbm                       0.00662    0.05767      0.825
+  Sector Neutral                 0.00938    0.11324      0.302
 
 ADVANCED FEATURES:
 ------------------------------------------------------------------------------
   Hyperparameter Tuning: ⚠ DISABLED
-  Ensemble Models: ⚠ DISABLED
+  Ensemble Models: ✓ ENABLED
+    Ensemble Mean IC: 0.00519
+    Ensemble IC-IR: 0.03595
   Sector-Specific Models: ⚠ DISABLED
 
 TURNOVER ANALYSIS:
 ------------------------------------------------------------------------------
-  Mean Monthly Turnover: 25.3%
-  Annual Turnover: 304%
+  Mean Monthly Turnover: 26.5%
+  Annual Turnover: 318%
   Target Turnover: 25.0%
   Status: ⚠ ABOVE TARGET
 
 OUT-OF-TIME VALIDATION:
 ------------------------------------------------------------------------------
   OOT Months: 17
-  OOT Mean IC: 0.01394
-  OOT IC-IR: 0.24191
-  OOT Sharpe: 0.898
+  OOT Mean IC: 0.00625
+  OOT IC-IR: 0.10950
+  OOT Sharpe: 0.511
 
 NET PERFORMANCE (10bps costs):
 ------------------------------------------------------------------------------
-  Net Sharpe Ratio: 0.352
-  Cumulative Return: 44.52%
+  Net Sharpe Ratio: 0.288
+  Cumulative Return: 38.95%
 
 ==============================================================================
   DIAGNOSTIC REPORT COMPLETE
